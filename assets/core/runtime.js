@@ -98,7 +98,6 @@
         <div id="_vlt_topbar">
           <div id="_vlt_brand"><span id="_vlt_brand_badge">VAULT</span><span id="_vlt_brand_title">Practicals &amp; Lab Journal Repository</span></div>
           <div id="_vlt_topbar_actions">
-            <button class="vlt-btn vlt-btn-primary" id="_vlt_add_btn">&#43; Add Practical</button>
             <button class="vlt-btn vlt-btn-ghost" id="_vlt_sync_btn">&#8635; Sync</button>
             <button class="vlt-btn vlt-btn-danger" id="_vlt_lock_btn">&#128274; Lock</button>
           </div>
