@@ -1,740 +1,336 @@
-
-
 (function () {
   'use strict';
-
   const SECURE_STORE_KEY = '_sys_sec_vault';
   const LEGACY_STORE_KEY = 'vaultPracticals';
   const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
-
-  const DEFAULT_SUBJECTS = [
-    { name: 'Deep Learning', type: 'code', practicals: [] },
-    { name: 'Computer Vision', type: 'code', practicals: [] },
-    { name: 'Tableau', type: 'steps', practicals: [] },
-    { name: 'R Programming', type: 'code', practicals: [] },
-    { name: 'Business Forecasting', type: 'steps', practicals: [] }
-  ];
-
+  const DEFAULT_SUBJECTS = [{"name":"Deep Learning","type":"code","practicals":[{"title":"Practical 1: Tensors and XOR problem using TensorFlow","aim":"To understand the fundamentals of PyTorch by creating and manipulating tensors (including basic arithmetic, reshaping, slicing, indexing, and matrix multiplication), computing eigenvalues and eigenvectors, and ultimately building and training a neural network with a hidden layer to solve the non-linearly separable XOR problem.","code":"import torch\nimport torch.nn as nn\nimport torch.optim as optim\nimport numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.datasets import load_breast_cancer\nfrom sklearn.model_selection import train_test_split\n\n# =====================================================================\n# PRACTICAL 2.1: Linear Regression as a Shallow Neural Network\n# =====================================================================\nprint(\"--- Practical 2.1: Linear Regression ---\")\n\ntorch.manual_seed(42)\nnp.random.seed(42)\n\n# 1. Generate toy dataset (Square Footage vs House Price)\nX_linear = np.linspace(500, 3500, 100).reshape(-1, 1)\ny_linear = 0.15 * X_linear + 50 + np.random.normal(0, 30, size=X_linear.shape)\n\n# Normalize data for stable neural-network training\nscaler_X, scaler_y = StandardScaler(), StandardScaler()\nX_linear_scaled = scaler_X.fit_transform(X_linear)\ny_linear_scaled = scaler_y.fit_transform(y_linear)\n\nX_train_lin = torch.tensor(X_linear_scaled, dtype=torch.float32)\ny_train_lin = torch.tensor(y_linear_scaled, dtype=torch.float32)\n\n# 2. Shallow Neural Network for Linear Regression\nclass LinearRegressionNN(nn.Module):\n    def __init__(self):\n        super(LinearRegressionNN, self).__init__()\n        self.linear = nn.Linear(1, 1) # 1 input -> 1 output\n        \n    def forward(self, x):\n        return self.linear(x)\n\n# 3. Training helper (supports both optimizers)\ndef train_linear_model(optimizer_type=\"SGD\", epochs=150, lr=0.1):\n    model = LinearRegressionNN()\n    criterion = nn.MSELoss()\n    optimizer = optim.SGD(model.parameters(), lr=lr) if optimizer_type == \"SGD\" else optim.Adam(model.parameters(), lr=lr)\n    \n    loss_history = []\n    for epoch in range(epochs):\n        model.train()\n        optimizer.zero_grad()\n        outputs = model(X_train_lin)\n        loss = criterion(outputs, y_train_lin)\n        loss.backward()\n        optimizer.step()\n        loss_history.append(loss.item())\n    return model, loss_history\n\n# 4. Train with both optimizers\nmodel_sgd, losses_sgd = train_linear_model(\"SGD\", epochs=150, lr=0.1)\nmodel_adam, losses_adam = train_linear_model(\"Adam\", epochs=150, lr=0.1)\n\n# 5. Predict on new data points\nnew_sqft = np.array([[1200], [2500], [3200]])\nnew_sqft_scaled = torch.tensor(scaler_X.transform(new_sqft), dtype=torch.float32)\n\nmodel_sgd.eval()\nwith torch.no_grad():\n    pred_scaled = model_sgd(new_sqft_scaled)\n    pred_prices = scaler_y.inverse_transform(pred_scaled.numpy())\n    \n    print(\"\\nLinear Regression Predictions for New House Sizes (SGD Model):\")\n    for sqft, price in zip(new_sqft.flatten(), pred_prices.flatten()):\n        print(f\"Square Footage: {sqft} sqft -> Predicted Price: ${price:.2f}k\")\n\n\n# =====================================================================\n# PRACTICAL 2.2: Logistic Regression on Breast Cancer Dataset\n# =====================================================================\nprint(\"\\n--- Practical 2.2: Logistic Regression ---\")\n\n# 1. Load the Breast Cancer dataset\ndata = load_breast_cancer()\nX_log, y_log = data.data, data.target\nX_train, X_test, y_train, y_test = train_test_split(X_log, y_log, test_size=0.2, random_state=42)\n\nscaler_log = StandardScaler()\nX_train_scaled = scaler_log.fit_transform(X_train)\nX_test_scaled = scaler_log.transform(X_test)\n\nX_train_tensor = torch.tensor(X_train_scaled, dtype=torch.float32)\ny_train_tensor = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1)\nX_test_tensor = torch.tensor(X_test_scaled, dtype=torch.float32)\ny_test_tensor = torch.tensor(y_test, dtype=torch.float32).unsqueeze(1)\n\n# 2. Shallow Neural Network for Logistic Regression\nclass LogisticRegressionNN(nn.Module):\n    def __init__(self, input_dim):\n        super(LogisticRegressionNN, self).__init__()\n        self.linear = nn.Linear(input_dim, 1)\n        self.sigmoid = nn.Sigmoid()\n        \n    def forward(self, x):\n        return self.sigmoid(self.linear(x))\n\n# 3. Training helper (supports both optimizers)\ndef train_logistic_model(optimizer_type=\"SGD\", epochs=150, lr=0.1):\n    model = LogisticRegressionNN(input_dim=X_train_tensor.shape[1])\n    criterion = nn.BCELoss()\n    optimizer = optim.SGD(model.parameters(), lr=lr) if optimizer_type == \"SGD\" else optim.Adam(model.parameters(), lr=lr)\n    \n    loss_history = []\n    for epoch in range(epochs):\n        model.train()\n        optimizer.zero_grad()\n        outputs = model(X_train_tensor)\n        loss = criterion(outputs, y_train_tensor)\n        loss.backward()\n        optimizer.step()\n        loss_history.append(loss.item())\n    return model, loss_history\n\n# 4. Train with both optimizers\nmodel_log_sgd, losses_log_sgd = train_logistic_model(\"SGD\", epochs=150, lr=0.1)\nmodel_log_adam, losses_log_adam = train_logistic_model(\"Adam\", epochs=150, lr=0.1)\n\n# 5. Evaluate and predict\ndef evaluate_model(model, X_data, y_data):\n    model.eval()\n    with torch.no_grad():\n        probabilities = model(X_data)\n        predictions = (probabilities >= 0.5).float()\n        accuracy = (predictions == y_data).float().mean().item()\n    return accuracy * 100\n\naccuracy_sgd = evaluate_model(model_log_sgd, X_test_tensor, y_test_tensor)\naccuracy_adam = evaluate_model(model_log_adam, X_test_tensor, y_test_tensor)\n\nprint(f\"Logistic Regression Test Accuracy (SGD): {accuracy_sgd:.2f}%\")\nprint(f\"Logistic Regression Test Accuracy (Adam): {accuracy_adam:.2f}%\")\n\n# Prediction on 3 sample points from the test set\nsample_indices = [0, 10, 20]\nmodel_log_adam.eval()\nwith torch.no_grad():\n    samples = X_test_tensor[sample_indices]\n    true_labels = y_test_tensor[sample_indices].numpy().flatten()\n    pred_probs = model_log_adam(samples).numpy().flatten()\n    pred_labels = (pred_probs >= 0.5).astype(int)\n    \n    print(\"\\nPredictions on Sample Test Points (Adam model):\")\n    for i, idx in enumerate(sample_indices):\n        class_name = data.target_names[pred_labels[i]]\n        true_name = data.target_names[int(true_labels[i])]\n        print(f\"Sample {idx} -> Predicted Probability: {pred_probs[i]:.4f} | Predicted Class: {class_name} | True Class: {true_name}\")"}]},{"name":"Computer Vision","type":"code","practicals":[{"title":"Practical 2: Image Stitching","aim":"Perform Image Stitching to create a Panoramic Image","code":"import cv2\nimport numpy as np\nimport matplotlib.pyplot as plt\n\npaths = [\n    \"/content/1.jpg\",\n    \"/content/2.jpg\",\n    \"/content/3.jpg\",\n    \"/content/4.jpg\"\n]\nimages = [cv2.imread(p) for p in paths]\n\ndef resize(img, max_dim=1000):\n    h, w = img.shape[:2]\n    s = max_dim / w\n    return cv2.resize(img, (int(w * s), int(h * s))) if s<1 else img\n\nimages = [resize(img) for img in images]\n\nfig, axs = plt.subplots(1, 4, figsize=(16, 5))\nfor ax, img in zip(axs, images):\n  ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)); ax.axis('off')\nplt.show()\n\nstitcher = cv2.Stitcher_create()\nstatus, panorama = stitcher.stitch(images)\n\nif status == cv2.Stitcher_OK:\n  plt.figure(figsize=(14,7))\n  plt.imshow(cv2.cvtColor(panorama, cv2.COLOR_BGR2RGB))\n  plt.title(\"Panorama\")\n  plt.axis('off')\n  plt.show()\n  cv2.imwrite(\"panorama.jpg\", panorama)\n  print(\"Panorama generated successfully\")\nelse:\n  print(\"Panorama generation failed. Status code:\", status)"},{"title":"Practical 3: Camera Calibration","aim":"Perform Camera Calibration using a Checkerboard Pattern","code":"import cv2\nimport numpy as np\nimport glob\nimport os\nimport matplotlib.pyplot as plt\n\nfrom google.colab import files\nuploaded = files.upload()\nIMG_DIR = \"calib_images\"\nos.makedirs(IMG_DIR, exist_ok=True)\nfor fname in uploaded.keys():\n    os.rename(fname, os.path.join(IMG_DIR, fname))\n\nimages = sorted(glob.glob(os.path.join(IMG_DIR, \"*.jpg\")))\nprint(f\"Found {len(images)} images:\", images)\n\nCHECKERBOARD = (9, 6)   # (columns, rows) of internal corners\nSQUARE_SIZE = 25.0      # size of one square in mm (measure your physical board\n                         # and change this — it only affects the scale/units\n                         # of the resulting extrinsics, not reprojection error)\n\n# Termination criteria for sub-pixel corner refinement\ncriteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)\n\n# Prepare object points, like (0,0,0), (1,0,0), (2,0,0) ... (8,5,0)\nobjp = np.zeros((CHECKERBOARD[0] * CHECKERBOARD[1], 3), np.float32)\nobjp[:, :2] = np.mgrid[0:CHECKERBOARD[0], 0:CHECKERBOARD[1]].T.reshape(-1, 2)\nobjp *= SQUARE_SIZE\n\nobjpoints = []   # 3D points in real world space\nimgpoints = []   # 2D points in image plane\nused_images = []\nimg_shape = None\n\nfor fname in images:\n    img = cv2.imread(fname)\n    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)\n    img_shape = gray.shape[::-1]  # (width, height)\n\n    ret, corners = cv2.findChessboardCorners(\n        gray, CHECKERBOARD,\n        flags=cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE + cv2.CALIB_CB_FAST_CHECK\n    )\n\n    if ret:\n        corners_refined = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)\n        objpoints.append(objp)\n        imgpoints.append(corners_refined)\n        used_images.append(fname)\n    else:\n        print(f\"  Corners NOT found in {fname} (skipped)\")\n\nprint(f\"\\n Corners detected in {len(used_images)}/{len(images)} images\")\n\nn_show = min(6, len(used_images))\nfig, axes = plt.subplots(2, 3, figsize=(15, 8))\nfor ax, fname, corners in zip(axes.ravel(), used_images[:n_show], imgpoints[:n_show]):\n    img = cv2.imread(fname)\n    cv2.drawChessboardCorners(img, CHECKERBOARD, corners, True)\n    ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))\n    ax.set_title(os.path.basename(fname))\n    ax.axis('off')\nplt.tight_layout()\nplt.show()\n\nret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(\n    objpoints, imgpoints, img_shape, None, None\n)\n\nprint(\"Calibration successful:\", ret)\nprint(\"\\nCamera matrix (intrinsics):\\n\", camera_matrix)\nprint(\"\\nDistortion coefficients:\\n\", dist_coeffs.ravel())\n\ntotal_error = 0\nfor i in range(len(objpoints)):\n    imgpoints2, _ = cv2.projectPoints(\n        objpoints[i], rvecs[i], tvecs[i], camera_matrix, dist_coeffs\n    )\n    error = cv2.norm(imgpoints[i], imgpoints2, cv2.NORM_L2) / len(imgpoints2)\n    total_error += error\n\nmean_error = total_error / len(objpoints)\nprint(f\"\\nMean reprojection error: {mean_error:.4f} pixels\")\n\nsample_img = cv2.imread(used_images[0])\nh, w = sample_img.shape[:2]\n\nnew_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(\n    camera_matrix, dist_coeffs, (w, h), 1, (w, h)\n)\nundistorted = cv2.undistort(sample_img, camera_matrix, dist_coeffs, None, new_camera_matrix)\n\n# Optionally crop to the valid ROI\nx, y, w_roi, h_roi = roi\nundistorted_cropped = undistorted[y:y + h_roi, x:x + w_roi]\n\nfig, axes = plt.subplots(1, 2, figsize=(14, 6))\naxes[0].imshow(cv2.cvtColor(sample_img, cv2.COLOR_BGR2RGB))\naxes[0].set_title(\"Original\")\naxes[0].axis('off')\naxes[1].imshow(cv2.cvtColor(undistorted, cv2.COLOR_BGR2RGB))\naxes[1].set_title(\"Undistorted\")\naxes[1].axis('off')\nplt.tight_layout()\nplt.show()\n\nnp.savez(\"camera_calibration.npz\",\n         camera_matrix=camera_matrix,\n         dist_coeffs=dist_coeffs,\n         rvecs=rvecs,\n         tvecs=tvecs,\n         reprojection_error=mean_error)\n\nfiles.download(\"camera_calibration.npz\")\nprint(\"\\nSaved calibration parameters to camera_calibration.npz\")"},{"title":"Practical 4: Face, Object, Pedestrian Detection using YOLOv8n","aim":"1. Detect human faces in image \n2. Detect multiple object classes in image \n3. Detect pedestrians in image","code":"from ultralytics import YOLO\nfrom google.colab.patches import cv2_imshow\n\nmodel = YOLO('yolo26n.pt')\nresults = model('/content/cat_dogg (1).jpg')\ncv2_imshow(results[0].plot())\n\n\nimport cv2\nimport matplotlib.pyplot as plt\nfrom ultralytics import YOLO\n\nmodel = YOLO('yolov8n.pt')\nresults = model('image1.jpg', classes=[0])\n\nannotated_image = results[0].plot()\nrgb_image = cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)\n\nplt.figure(figsize=(10, 8))\nplt.imshow(rgb_image)\nplt.title('Object Detection')\nplt.axis('off')\nplt.show()"},{"title":"Practical 6: Object Detection and Tracking from Video","aim":"Implement multi-object detection and tracking from a video stream","code":"from ultralytics import YOLO\n\nmodel = YOLO('yolov8n.pt')\nresults = model.predict('video.mp4', save=True)"},{"title":"Practical 7: Feature Extraction using RANSAC","aim":"Perform robust feature matching and homography estimation using RANSAC","code":"import cv2\nimport numpy as np\n\nimg1, img2 = cv2.imread('1.jpg', 0), cv2.imread('2.jpg', 0)\norb = cv2.ORB_create()\nkp1, des1 = orb.detectAndCompute(img1, None)\nkp2, des2 = orb.detectAndCompute(img2, None)\n\nmatches = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True).match(des1, des2)\n\nsrc_pts = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)\ndst_pts = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)\n\nH, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)\n\nfrom google.colab.patches import cv2_imshow\n\nprint(\"Homography Matrix:\\n\", H)\nmatchesMask = mask.ravel().tolist()\ndraw_params = dict(matchColor=(0, 255, 0),\n                   singlePointColor=None,\n                   matchesMask=matchesMask,\n                   flags=2)\nimg_matches = cv2.drawMatches(img1, kp1, img2, kp2, matches, None, **draw_params)\ncv2_imshow(img_matches)"},{"title":"Practical 8: Image Colorization","aim":"Automatically colorize grayscale images using a pre-trained deep learning model","code":"!git clone -q https://github.com/richzhang/colorization.git\nimport sys, torch, matplotlib.pyplot as plt\nsys.path.append('/content/colorization')\nfrom colorizers import eccv16, util\n\ncolorizer = eccv16(pretrained=True).eval()\nimg = util.load_img('/content/img.jpg')\ntens_l_orig, tens_l_rs = util.preprocess_img(img, HW=(256, 256))\nout_img = util.postprocess_tens(tens_l_orig, colorizer(tens_l_rs).cpu())\n\nplt.figure(figsize=(10, 5))\nplt.subplot(1, 2, 1); plt.imshow(img); plt.title('Original'); plt.axis('off')\nplt.subplot(1, 2, 2); plt.imshow(out_img); plt.title('Colorized'); plt.axis('off')\nplt.show()"},{"title":"Practical 9: Text Detection and Recognition (OCR)","aim":"Detect and recognise text in natural scene images using EasyOCR","code":"import cv2, matplotlib.pyplot as plt\nimport easyocr\n\nreader = easyocr.Reader(['en'])\n\nimage_path = '/content/handwritten.jpg'\nimage = cv2.imread(image_path)\n\nresults = reader.readtext(image)\n\nfor bbox, text, prob in results:\n    (top_left, top_right, bottom_right, bottom_left) = bbox\n    pt1 = (int(top_left[0]), int(top_left[1]))\n    pt2 = (int(bottom_right[0]), int(bottom_right[1]))\n\n    cv2.rectangle(image, pt1, pt2, (0, 255, 0), 2)\n    print(f\"Detected Text: {text} (Confidence: {prob:.2f})\")\n\nplt.figure(figsize=(8, 8))\nplt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))\nplt.axis('off')\nplt.show()"},{"title":"Practical 10: Image Matting and Compositing","aim":"Perform image matting to extract a foreground subject and composite it onto a new background","code":"from rembg import remove\nfrom PIL import Image\nimport matplotlib.pyplot as plt\n\ninput_image = Image.open('image1.jpg')\n\nplt.subplot(1, 3, 1)\nplt.imshow(input_image)\nplt.title(\"Original Image\")\nplt.axis(\"off\")\nbackground_image = Image.open('new_background.jpg').resize(input_image.size)\n\nplt.subplot(1, 3, 2)\nplt.imshow(background_image)\nplt.title(\"Background Image\")\nplt.axis(\"off\")\nforeground = remove(input_image)\n\nbackground_image.paste(foreground, (0, 0), foreground)\n\nplt.figure(figsize=(12, 6))\n\nplt.subplot(1, 3, 3)\nplt.imshow(background_image)\nplt.title(\"Composited Image\")\nplt.axis(\"off\")\n\nplt.tight_layout()\nplt.show()"},{"title":"Module 2","aim":"Module 2","code":"Module 2"},{"title":"Practical 1: Classifying Traffic Signs","aim":"Classifying traffic signs using a standard benchmark dataset","code":"from transformers import pipeline\nfrom PIL import Image\nimport matplotlib.pyplot as plt\n\n# 1. Load image\nimg = Image.open(\"image1.jpg\")\n\n# 2. Use a properly configured pre-trained model for traffic signs\nclassifier = pipeline(\"image-classification\", model=\"dima806/traffic_sign_detection\")\n\n# 3. Predict\nprediction = classifier(img)[0]\n\n# 4. Display\nplt.imshow(img)\nplt.title(f\"{prediction['label']} ({prediction['score']:.2f})\")\nplt.axis(\"off\")\nplt.show()"},{"title":"Practical 3: Optical Character Recognition (OCR)","aim":"Optical Character Recognition (OCR) for Handwritten Text","code":"import cv2, matplotlib.pyplot as plt\nimport easyocr\n\nreader = easyocr.Reader(['en'])\n\nimage_path = '/content/handwritten.jpg'\nimage = cv2.imread(image_path)\n\nresults = reader.readtext(image)\n\nfor bbox, text, prob in results:\n    (top_left, top_right, bottom_right, bottom_left) = bbox\n    pt1 = (int(top_left[0]), int(top_left[1]))\n    pt2 = (int(bottom_right[0]), int(bottom_right[1]))\n\n    cv2.rectangle(image, pt1, pt2, (0, 255, 0), 2)\n    print(f\"Detected Text: {text} (Confidence: {prob:.2f})\")\n\nplt.figure(figsize=(8, 8))\nplt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))\nplt.axis('off')\nplt.show()"},{"title":"Practical 4: Facial Emotion Recognition","aim":"Facial Emotion Recognition","code":"!pip install -q transformers torch torchvision\n\nfrom transformers import pipeline\nfrom PIL import Image\nimport matplotlib.pyplot as plt\n\n# 1. Load your image (ensure it's a clear shot of a face)\nimg = Image.open(\"images3.jpg\")\n\n# 2. Load the pre-trained emotion recognition model\nprint(\"Loading Emotion Recognition model...\")\nemotion_classifier = pipeline(\"image-classification\", model=\"dima806/facial_emotions_image_detection\")\n\n# 3. Predict the emotion\nresult = emotion_classifier(img)[0]\n\n# 4. Display\nplt.figure(figsize=(4, 4))\nplt.imshow(img)\nplt.title(f\"Emotion: {result['label']} ({result['score']:.2f})\")\nplt.axis(\"off\")\nplt.show()"},{"title":"Practical 5: Food Image Classification","aim":"Food Image Classification","code":"!pip install -q transformers torch torchvision\n\nfrom transformers import pipeline\nfrom PIL import Image\nimport matplotlib.pyplot as plt\n\nimg = Image.open(\"image3.jpg\")\n\nprint(\"Loading Food Recognition model...\")\nfood_classifier = pipeline(\"image-classification\", model=\"ashaduzzaman/vit-finetuned-food101\")\n\npredictions = food_classifier(img)\ntop_prediction = predictions[0]\n\nplt.figure(figsize=(5, 5))\nplt.imshow(img)\nplt.title(f\"Dish: {top_prediction['label']} ({top_prediction['score']:.2f})\")\nplt.axis(\"off\")\nplt.show()"},{"title":"Practical  6: Multi-object Tracking in Video","aim":"Multi-object Tracking in Video","code":"from ultralytics import YOLO\n\nmodel = YOLO('yolov8n.pt')\nresults = model.predict('video.mp4', save=True)"},{"title":"Practical 7: Image Captioning","aim":"Image Captioning","code":"!pip install -q transformers pillow\n\nfrom transformers import pipeline\nfrom PIL import Image\nimport matplotlib.pyplot as plt\n\nprint(\"Loading BLIP Image Captioning model...\")\ncaptioner = pipeline(\"image-text-to-text\", model=\"Salesforce/blip-image-captioning-base\")\n\nimg = Image.open(\"image.jpg\").convert(\"RGB\")\n\nprint(\"Analyzing image...\")\nresult = captioner(images=img, text=\"a photography of\")\ngenerated_caption = result[0]['generated_text']\n\nplt.figure(figsize=(6, 6))\nplt.imshow(img)\nplt.title(generated_caption.capitalize(), wrap=True, fontsize=12)\nplt.axis(\"off\")\nplt.show()"},{"title":"Practical 9: Visual Question Answering (VQA)","aim":"Visual Question Answering (VQA)","code":"!pip install -q transformers torch pillow\n\nfrom transformers import ViltProcessor, ViltForQuestionAnswering\nfrom PIL import Image\nimport torch\nimport matplotlib.pyplot as plt\n\nprint(\"Loading VQA model and processor...\")\nprocessor = ViltProcessor.from_pretrained(\"dandelin/vilt-b32-finetuned-vqa\")\nmodel = ViltForQuestionAnswering.from_pretrained(\"dandelin/vilt-b32-finetuned-vqa\")\n\nimage_path = \"download.jpg\"\nimage = Image.open(image_path).convert(\"RGB\")\nquestion = input(\"Enter your question: \")\n\nencoding = processor(image, question, return_tensors=\"pt\")\n\nprint(\"Analyzing image and question...\")\nwith torch.no_grad():\n    outputs = model(**encoding)\n\nlogits = outputs.logits\nidx = logits.argmax(-1).item()\nanswer = model.config.id2label[idx]\n\nplt.figure(figsize=(6, 6))\nplt.imshow(image)\nplt.title(f\"Q: {question}\\nA: {answer.capitalize()}\", fontsize=11)\nplt.axis(\"off\")\nplt.show()"},{"title":"Practical 10: Face De-Aging/Aging","aim":"Face De-Aging/Aging","code":"!pip install -q diffusers transformers accelerate torch torchvision\n\nfrom transformers import pipeline\nfrom diffusers import StableDiffusionImg2ImgPipeline\nfrom PIL import Image\nimport torch\nimport matplotlib.pyplot as plt\n\nprint(\"Running Age Analysis...\")\nage_pipe = pipeline(\"image-classification\", model=\"nateraw/vit-age-classifier\")\nanalysis_results = age_pipe(Image.open(\"face.jpg\"))[:3]\nprint(\"Age predictions:\", analysis_results)\n\nprint(\"Loading Diffusion Pipeline...\")\ndevice = \"cuda\" if torch.cuda.is_available() else \"cpu\"\npipe = StableDiffusionImg2ImgPipeline.from_pretrained(\n    \"runwayml/stable-diffusion-v1-5\",\n    torch_dtype=torch.float16 if device == \"cuda\" else torch.float32\n).to(device)\n\ndef age_face(path, direction=\"older\", strength=0.55):\n    img = Image.open(path).convert(\"RGB\").resize((512, 512))\n\n    if direction == \"older\":\n        prompt = \"portrait of the same person aged older by 20 years, natural wrinkles, grey hair, photorealistic, high quality, same identity\"\n    else:\n        prompt = \"portrait of the same person as a young child with smooth skin, bright eyes, photorealistic, high quality, same identity\"\n\n    neg = \"different person, deformed, blurry, cartoon, illustration\"\n\n    return pipe(\n        prompt=prompt,\n        image=img,\n        strength=strength,\n        negative_prompt=neg,\n        num_inference_steps=50\n    ).images[0]\n\nprint(\"Generating transformations...\")\naged_img = age_face(\"face.jpg\", \"older\")\nyounger_img = age_face(\"face.jpg\", \"younger\")\n\naged_img.save(\"aged.png\")\nyounger_img.save(\"younger.png\")\nprint(\"Successfully saved aged.png and younger.png\")\n\nfig, axes = plt.subplots(1, 3, figsize=(15, 5))\noriginal = Image.open(\"face.jpg\")\n\naxes[0].imshow(original)\naxes[0].set_title(\"Original Face\")\naxes[0].axis(\"off\")\n\naxes[1].imshow(aged_img)\naxes[1].set_title(\"Aged (+20 Years)\")\naxes[1].axis(\"off\")\n\naxes[2].imshow(younger_img)\naxes[2].set_title(\"De-Aged (Younger)\")\naxes[2].axis(\"off\")\n\nplt.show()"},{"title":"Practical 11: Human Pose Estimation","aim":"Human Pose Estimation and Action Recognition in Crowded Scenes","code":"!pip install -q transformers torch\n\nfrom transformers import pipeline\nfrom PIL import Image\nimport matplotlib.pyplot as plt\n\nprint(\"Loading Pose Classifier...\")\nclassifier = pipeline(\"zero-shot-image-classification\", model=\"openai/clip-vit-base-patch32\")\n\nimg = Image.open(\"image.jpg\").convert(\"RGB\")\n\ncandidate_labels = [\n    \"person crouching\",\n    \"person standing\",\n    \"person sitting\",\n    \"person running\",\n    \"person walking\"\n]\n\npredictions = classifier(img, candidate_labels=candidate_labels)\ntop_prediction = predictions[0]\n\nplt.figure(figsize=(6, 6))\nplt.imshow(img)\nplt.title(f\"Recognized Pose: {top_prediction['label'].upper()} (Score: {top_prediction['score']:.2f})\", fontsize=11)\nplt.axis(\"off\")\nplt.show()"},{"title":"Practical 12: Unsupervised Anomaly Detection in Industrial Inspection","aim":"Unsupervised Anomaly Detection in Industrial Inspection","code":"!pip install -q transformers pillow torch torchvision matplotlib\n\nfrom transformers import pipeline\nfrom PIL import Image\nimport matplotlib.pyplot as plt\n\nprint(\"Loading Industrial Inspection Model...\")\ninspector = pipeline(\"zero-shot-image-classification\", model=\"openai/clip-vit-base-patch32\")\n\nimage_path = \"image1.jpg\" # Ensure this image is uploaded\nimg = Image.open(image_path).convert(\"RGB\")\n\ncandidate_labels = [\n    \"flawless normal industrial part\",\n    \"defective industrial part with scratches, cracks, or surface flaws\"\n]\n\npredictions = inspector(img, candidate_labels=candidate_labels)\ntop_prediction = predictions[0]\n\n plt.figure(figsize=(6, 6))\nplt.imshow(img)\nplt.title(f\"Inspection Verdict: {top_prediction['label'].upper()}\\nConfidence Score: {top_prediction['score']:.2f}\", fontsize=11)\nplt.axis(\"off\")\nplt.show()"},{"title":"Practical 1: Geometric Transformation of Images","aim":"Perform Geometric Transformation of Images","code":"import cv2\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# Load image\nimg = cv2.imread('/content/images.jpg')\n\nif img is None:\n    raise ValueError(\"Image not found. Please check the file path.\")\n\nh, w = img.shape[:2] \n\n# 1. Translation\ntx, ty = 80, 50\nM_trans = np.float32([[1, 0, tx], [0, 1, ty]])\ntranslated = cv2.warpAffine(img, M_trans, (w, h))\n\n# 2. Rotation\ncenter = (w // 2, h // 2)\nM_rot = cv2.getRotationMatrix2D(center, 45, 1.0)\nrotated = cv2.warpAffine(img, M_rot, (w, h))\n\n# 3. Scaling\nscaled = cv2.resize(img, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_LINEAR)\n\n# 4. Shearing\nshear_factor = 0.3\nM_shear = np.float32([[1, shear_factor, 0], [0, 1, 0]])\nsheared = cv2.warpAffine(img, M_shear, (w, h))\n\n# 5. Reflection\nflipped_h = cv2.flip(img, 1)  # horizontal\nflipped_v = cv2.flip(img, 0)  # vertical (Fixed typo 'e' -> 0)\nflipped_b = cv2.flip(img, -1) # both (Fixed flag 1 -> -1)\n\n# 6. Affine Transformation\npts1 = np.float32([[50, 50], [200, 50], [50, 200]])\npts2 = np.float32([[10, 100], [200, 50], [100, 250]])\nM_aff = cv2.getAffineTransform(pts1, pts2)\naffine = cv2.warpAffine(img, M_aff, (w, h))\n\n# 7. Perspective Transformation\nsrc_pts = np.float32([[56, 65], [368, 52], [28, 387], [389, 390]])\ndst_pts = np.float32([[0, 0], [300, 0], [0, 300], [300, 300]])\nM_per = cv2.getPerspectiveTransform(src_pts, dst_pts)\nperspective = cv2.warpPerspective(img, M_per, (300, 300))\n\n# Display\ntitles = [\"Original\", \"Translated\", \"Rotated\", \"Sheared\",\n          \"Flip-H\", \"Flip-V\", \"Affine\", \"Perspective\"]\nimages = [img, translated, rotated, sheared,\n          flipped_h, flipped_v, affine, perspective]\n\nfig, axes = plt.subplots(2, 4, figsize=(16, 8))\n\nfor ax, im, t in zip(axes.flat, images, titles):\n    ax.imshow(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))\n    ax.set_title(t)\n    ax.axis(\"off\")\n\nplt.tight_layout()\nplt.savefig(\"geometric_output.png\", dpi=150)\nplt.show()"},{"title":"Practical 2: Multi-class Classification Application for Detecting Diseased Plants","aim":"Multi-class classification application for detecting diseased plants based on images of their leaves","code":"!pip install -q transformers torch torchvision\n\nfrom transformers import pipeline\nfrom PIL import Image\nimport matplotlib.pyplot as plt\n\n# Load image and pre-trained model\nimg = Image.open(\"leaf2.png\")\nclassifier = pipeline(\"image-classification\", model=\"wambugu71/crop_leaf_diseases_vit\")\n\n# Predict\nprediction = classifier(img)[0]\n\n# Display\nplt.imshow(img)\nplt.title(f\"{prediction['label']} ({prediction['score']:.2f})\")\nplt.axis(\"off\")\nplt.show()"},{"title":"Practical 8: Gesture Recognition for Human-Computer Interaction","aim":"Gesture Recognition for Human-Computer Interaction","code":"!pip install -q mediapipe opencv-python\n\nfrom transformers import pipeline\nfrom PIL import Image\nimport matplotlib.pyplot as plt\n\nprint(\"Loading Zero-Shot Gesture Classifier...\")\nclassifier = pipeline(\"zero-shot-image-classification\", model=\"openai/clip-vit-base-patch32\")\n\nimg = Image.open(\"image1.jpg\").convert(\"RGB\")\n\ncandidate_labels = [\"thumbs up\", \"open palm\", \"fist\", \"peace sign\", \"pointing finger\", \"ok sign\"]\n\npredictions = classifier(img, candidate_labels=candidate_labels)\ntop_prediction = predictions[0]\n\nplt.figure(figsize=(6, 6))\nplt.imshow(img)\nplt.title(f\"Detected Gesture: {top_prediction['label'].capitalize()} (Score: {top_prediction['score']:.2f})\")\nplt.axis(\"off\")\nplt.show()"}]},{"name":"Tableau","type":"steps","practicals":[{"title":"Practical 1: Getting Started with Tableau and Building Basic Visualizations","aim":"Getting Started with Tableau and Building Basic Visualizations","steps":"Connect to Data: On the start page, click Connect > Text File and load your CSV. Click Sheet 1 to begin.  \nBar Chart: Drag Category to Rows and Sales to Columns.   Line Chart: Drag Order Date to Columns and Sales to Rows, then select Line Chart from Show Me.   \nGeographic Map: Drag State onto the canvas, drag Sales to Color, and drag Profit to Size.   \nDashboard: Click New Dashboard, set size to Automatic, and drag your created sheets onto the canvas."},{"title":"Practical 2: Working with Data Sources and Data Preparation","aim":"Working with Data Sources and Data Preparation","steps":"Extracts: In the Data Source tab, select the Extract radio button (to create a compressed snapshot) instead of Live.   \n\nManage Metadata: Right-click fields in the Data pane to Rename, Hide, or Change Data Type (e.g., String to Number).   \n\nJoins: In the Data Source tab, drag a second table next to the first, click the Venn diagram icon, and select Inner, Left, or Right join.   \n\nData Blending: Connect a second data source, find the common linking field (e.g., Region), and click the gray link icon to turn it orange.   \n\nFilters: Drag a Dimension, Measure, or Date field to the Filters shelf and set your range, specific values, or relative dates."},{"title":"Practical 3: Creating Advanced Visualizations","aim":"Creating Advanced Visualizations","steps":"Stacked/Grouped Bars: Drag Category to Columns and Sales to Rows. For stacked, drag Sub-Category to Color. For grouped, drag Sub-Category next to Category on Columns.   \n\nTreemap/Pie Chart: Select Treemap or Pie from Show Me. Drag Category to Color and Sales to Size (or Angle for Pie).   \n\nScatter Plot: Drag Sales to Columns, Profit to Rows, and Sub-Category to Detail.   \n\nDual-Axis: Drag Order Date to Columns, and drag both Sales and Profit to Rows.   \n\nHistograms (Bins): Right-click Sales > Create > Bins. Drag Sales (bin) to Columns and Number of Records to Rows.   \n\nBox-and-Whisker Plot: Drag Category to Columns, Sales to Rows, and select Box-and-Whisker Plot from Show Me.   \n\nGantt Chart: Drag Order ID to Rows, Order Date to Columns, select Gantt Bar on the Marks card, and drag a calculated Shipping Days field to Size."},{"title":"Practical 4: Data Analysis using Calculations","aim":"Data Analysis using Calculations","steps":"Basic Math: Go to Analysis > Create Calculated Field. Enter formulas like [Sales]/[Quantity] or SUM([Sales]).   \n\nLogical Operations: Use IF/THEN statements (e.g., IF [Profit] > 0 THEN \"Profit\" ELSE \"Loss\" END).   \n\nLOD Calculations: Use {FIXED [Region]: SUM([Sales])} for fixed regional totals, or use INCLUDE/EXCLUDE to force or ignore specific dimensions.   \n\nParameters: Right-click the Data Pane > Create Parameter (e.g., \"Sales Target\"). Create a calculated field referencing this parameter, drag it to Color, and right-click the parameter to select Show Parameter."},{"title":"Practical 5: Table Calculations","aim":"Table Calculations","steps":"Quick Table Calcs: Right-click a measure on your shelf, choose Quick Table Calculation, and select Running Total, Percent of Total, or Year Over Year Growth.   \n\nWindow Functions: Create calculated fields using WINDOW_SUM(SUM([Sales])) or WINDOW_AVG to calculate across the visible view.   \n\nAddressing/Partitioning: Right-click your table calculation and select Edit Table Calculation to change the compute direction (e.g., Table Across vs. Table Down).   \n\nDynamic Titles: Create a field using ATTR([Region]) and insert it into your worksheet title."},{"title":"Practical 6: Designing Effective Dashboards","aim":"Designing Effective Dashboards","steps":"Number/Date Formatting: Right-click a field > Default Properties > Number Format (e.g., Currency Custom) or Date Format.   \n\nCustom Tooltips: Click Tooltip on the Marks card to edit the text. To embed a chart, click Insert > Sheets in the tooltip editor.   \n\nFormatting UI: Go to Format > Lines and set Grid Lines to None for a cleaner look."},{"title":"Practical 7: Interactive Dashboards and Data Stories","aim":"Interactive Dashboards and Data Stories","steps":"Apply Filters Across Sheets: Right-click a filter > Apply to Worksheets > All Using This Data Source.   \n\nDashboard Actions: Go to Dashboard > Actions > Add Action.Choose Highlight (run on Hover).   \n    Choose Filter (run on Select).   \n    Choose Go to URL and insert variables like <State>.   \n    Choose Change Set Values to update sets dynamically.   \n\nSheet Swapping: Create a string parameter with sheet names, build a calculated field linking to it, and drop it on Rows to swap views.   \n\nDevice Layouts: Click Device Preview on the dashboard to adjust layouts for Desktop, Tablet, and Phone.  \n\nData Stories: Click New Story, drag dashboards onto the points, and add explanatory captions."},{"title":"Practical 9: Cleaning and Structuring Data","aim":"Cleaning and Structuring Data","steps":"Handling Nulls: Filter out nulls or use a calculated field like ZN([Sales]) to convert nulls to zeros.   \n\nPivot Data: In the Data Source tab, select multiple columns (Ctrl+Click), right-click the header, and select Pivot.   \n\nUnions: Drag New Union to the canvas and use a wildcard (e.g., *Superstore*.csv) to combine multiple files.  \n\nGroups & Hierarchies: Right-click a field > Create > Group. Drag one dimension on top of another in the Data pane to create a hierarchy.   \n\nSplit Columns: Right-click a messy field (like Order ID) > Transform > Split."},{"title":"Practical 10: Advanced Visualization Techniques","aim":"Advanced Visualization Techniques","steps":"Slope Chart: Put YEAR(Order Date) on Columns/Path, Sales on Columns, Category on Rows/Color, set Marks to Line, and filter to exactly two years.   \n\nLollipop Chart: Put Sales on Columns twice, right-click the second axis and select Dual Axis and Synchronize Axis. Set the first mark to Bar and the second to Circle.   \n\nWaterfall Chart: Put Profit on Rows, set Marks to Bar, apply a Running Total Quick Table Calculation to Profit, and drag Profit to Size.   \n\nSparklines: Put Continuous Month on Columns, Sales on Rows, Category on Rows, and set Marks to Line.   \n\nCustom Territories: Select states on a map, click the Group paperclip icon, and drag the new group to Color.   \n\nAnimations: Go to Format > Animations, turn them On, and set a duration."},{"title":"Practical 11: Retail Sales & Profitability Dashboard","aim":"Retail Sales & Profitability Dashboard","steps":"Build the Views: Create individual sheets for Sales by Region (Bar), Profit by Region (Bar), Monthly Sales Trend (Line), Sales by State (Map), and a Discount vs Profit Scatter Plot.   \n\nProfit Ratio: Create a calculated field SUM([Profit]) / SUM([Sales]), format it as a percentage, and build a bar chart.   \n\nKPI Cards: Create text-only sheets by dragging Sales, Profit, and Profit Ratio to the Text mark.   \n\nAssemble: Place all sheets on a dashboard and configure Hover Highlight and Select Filter actions linking them."},{"title":"Practical 12: Customer Segmentation & Behavior Analysis (RFM)","aim":"Customer Segmentation & Behavior Analysis (RFM)","steps":"RFM Calculations: \n    Create LOD calculated fields:Last Purchase: {FIXED [Customer ID]: MAX([Order Date])}.   \n    Recency: DATEDIFF('day', [Last Purchase Date], {FIXED: MAX([Order Date])}).  \n    Frequency: {FIXED [Customer ID]: COUNTD([Order ID])}.   \n    Monetary: {FIXED [Customer ID]: SUM([Sales])}.   \n\nScoring & Segmentation: Create IF/THEN calculated fields to assign a 1-5 score for R, F, and M. Sum them for an [RFM Score] field. Create a [Customer Segment] field based on score thresholds (e.g., High Value, Loyal).   \n\nVisualizing: Build a scatter plot of Frequency vs. Monetary Value, adding Clusters from the Analytics pane and color-coding by Customer Segment."},{"title":"Practical 13: Sales Forecasting and Trend Analysis","aim":"Sales Forecasting and Trend Analysis","steps":"Continuous Trends: Drag Order Date (set to Continuous Month) to Columns and Sales to Rows. Drag Category to Color.   \n\nCustomize Trends: Drag Trend Line from the Analytics pane. Right-click it > Edit All Trend Lines to change the model to Polynomial or Exponential.   \n\nConfigure Forecast: Drag Forecast to the chart. Right-click the chart > Forecast > Forecast Options and set the length to \"Exactly 1 Year\".   \n\nYoY Growth: Drag YEAR to Columns, MONTH to Columns, and Sales to Rows. Set Marks to Bar, right-click SUM(Sales), and apply the Year Over Year Growth table calculation."},{"title":"Practical 8: Trends, Clustering, and Forecasting","aim":"Trends, Clustering, and Forecasting","steps":"Trend Lines: From the Analytics pane, drag Trend Line onto a scatter or line chart (choose Linear or Exponential). Right-click the line and select Describe Trend Model to view p-values and R-Squared.   \n\nClustering: Build a scatter plot (e.g., Profit vs. Sales), drag Customer Name to Detail, and drag Cluster from the Analytics pane onto the chart.   \n\nForecasting: Drag Forecast from the Analytics pane onto a time-series chart to generate a shaded prediction area.   \n\nExporting: Go to Worksheet > Copy > Data or Summary to export results."}]},{"name":"R Programming","type":"code","practicals":[{"title":"Practical 1: Fundamentals of R","aim":"1.1  To study the fundamentals of R programming: basics, converting numeric data to a factor, data manipulation and data importing. \n\n1.2 To convert a numeric variable into a factor (categorical variable), label its levels and convert it back to numeric.\n\n1.3  To manipulate a data frame using the dplyr functions rename, mutate, transmute, summarise, filter, arrange and distinct. \n\n1.4 To import an external CSV file into R as a data frame and view it.","code":"# 1. Basic program\nprint(\"Hello world\")\n\n# 2. Variables\nname <- \"Rahul\"\nage <- 20\nmarks <- 85\nprint(name)\nprint(age)\nprint(marks)\n\n# 3. Data types\na <- 25.5\nb <- 25L\nc <- \"R Programming\"\nd <- TRUE\ne <- 2 + 3i\nprint(class(a)) # numeric\nprint(class(b)) # integer\nprint(class(c)) # character\nprint(class(d)) # logical\nprint(class(e)) # complex\n\n# 4. Arithmetic operators\na <- 10\nb <- 3\nprint(a + b)\nprint(a - b)\nprint(a * b)\nprint(a / b)\nprint(a %% b)\nprint(a ^ b)\n\n# 5. Vectors and useful vector functions\nmarks <- c(70, 75, 80, 85, 90)\nprint(marks)\nprint(length(marks))\nprint(sum(marks))\nprint(mean(marks))\nprint(max(marks))\nprint(min(marks))\n\n# 6. Sequence and repetition\nx <- seq(1, 10, by = 2)\nprint(x)\ny <- rep(5, 4)\nprint(y)\n\n# 7. User input\nname <- readline(\"Enter your name: \")\nage <- as.numeric(readline(\"Enter your age: \"))\nprint(name)\nprint(age)\n\n# 8. Conditional statement\nmarks <- 75\nif (marks >= 40) {\n  print(\"Pass\")\n} else {\n  print(\"Fail\")\n}\n\n# 9. User-defined function\nadd <- function(a, b) {\n  return(a + b)\n}\nresult <- add(10, 20)\nprint(result)\n\n\n# 1B. Converting numeric to factor\ngrade <- c(1, 2, 3, 2, 1, 3, 2)\nclass(grade)\n\n# numeric to factor\ngrade_f <- as.factor(grade)\ngrade_f\nclass(grade_f)\nlevels(grade_f)\n\n# factor with meaningful labels\ngrade_l <- factor(grade, levels = c(1, 2, 3), labels = c(\"Low\", \"Medium\", \"High\"))\ngrade_l\ntable(grade_l)\n\n# factor back to numeric\nas.numeric(as.character(grade_f))\n\n\n# 1C. Data manipulation\nlibrary(dplyr)\nstats <- data.frame(player = c(\"A\", \"B\", \"C\", \"D\"), run = c(100, 200, 408, 19), wickets = c(17, 20, NA, 5))\nstats\n\n# rename() - change a column name\nstats2 <- rename(stats, runs_scored = run)\nstats2\n\n# mutate() - add a new column and keep the old ones\nmutate(stats2, avg = runs_scored / 4)\n\n# transmute() - keep only the new column\ntransmute(stats2, avg = runs_scored / 4)\n\n# summarise() - summary values\nsummarise(stats2, sum(runs_scored), mean(runs_scored))\n\n# filter() - select rows by a condition\nfilter(stats, run > 100)\n\n# arrange() - sort the rows\narrange(stats, run)\narrange(stats, desc(run))\n\n# distinct() - remove duplicate rows\nstats <- data.frame(player = c(\"A\", \"B\", \"C\", \"D\", \"A\", \"A\"), run = c(100, 200, 408, 19, 56, 100), wickets = c(17, 20, NA, 5, 2, 17))\ndistinct(stats)\ndistinct(stats, player, .keep_all = TRUE)\n\n# 1D. Data importing\nmy_data <- read.csv(\"C:/Users/LENOVO/Downloads/products-100.csv\", header = TRUE)\nView(my_data)"},{"title":"Practical 2: Graphs using R","aim":"To draw bar charts (simple, horizontal, coloured, grouped and stacked), a pie chart, a histogram, a scatter plot and a box plot in R.","code":"# 2A. Bar charts\n# Simple bar chart\nA <- c(17, 32, 8, 53, 1)\nbarplot(A, xlab = \"X-axis\", ylab = \"Y-axis\", main = \"Bar-Chart\")\n\n# Horizontal bar chart\nbarplot(A, horiz = TRUE, xlab = \"X-axis\", ylab = \"Y-axis\", main = \"Horizontal Bar Chart\")\n\n# Bar chart with labels and colour\nA <- c(17, 2, 8, 13, 1, 22)\nB <- c(\"Jan\", \"feb\", \"Mar\", \"Apr\", \"May\", \"Jun\")\nbarplot(A, names.arg = B, xlab = \"Month\", ylab = \"Articles\", col = \"green\", main = \"GeeksforGeeks-Article chart\")\n\n# Grouped bar chart\ncolors <- c(\"green\", \"orange\", \"brown\")\nmonths <- c(\"Mar\", \"Apr\", \"May\", \"Jun\", \"Jul\")\nregions <- c(\"East\", \"West\", \"North\")\nvalues <- matrix(c(2, 9, 3, 11, 9, 4, 8, 7, 3, 12, 5, 2, 8, 10, 11), nrow = 3, ncol = 5, byrow = TRUE)\nbarplot(values, main = \"Total Revenue\", names.arg = months, xlab = \"Month\", ylab = \"Revenue\", col = colors, beside = TRUE)\nlegend(\"topleft\", regions, cex = 0.7, fill = colors)\n\n# Stacked bar chart\nbarplot(values, main = \"Total Revenue\", names.arg = months, xlab = \"Month\", ylab = \"Revenue\", col = colors)\nlegend(\"topleft\", regions, cex = 0.7, fill = colors)\n\n# 2B. Pie chart\nx <- c(210, 450, 250, 100, 50, 90)\nnames(x) <- c(\"Algo\", \"DS\", \"Java\", \"C\", \"C++\", \"Python\")\npie(x, labels = names(x), col = \"white\", radius = 1, main = \"Articles on GeeksforGeeks\", col.main = \"darkgreen\")v\n\n# 2C. Histogram\nx <- c(21, 23, 56, 90, 20, 7, 94, 12, 57, 76, 69, 45, 34, 32, 49, 55, 57)\nhist(x, main = \"Histogram of Vector x\", xlab = \"Values\", col.lab = \"darkgreen\", col.main = \"darkgreen\")\n\n# 2D. Scatter plot\nplot(x = orange$age, y = orange$circumference, xlab = \"Age\", ylab = \"Circumference\", main = \"Age vs Circumference\", col.lab = \"darkgreen\", col.main = \"darkgreen\", col.axis = \"darkgreen\")\n\n# 2E. Box plot\nx <- c(42, 21, 22, 24, 25, 30, 29, 22, 23, 23, 24, 28, 32, 45, 39, 40)\nboxplot(x, xlab = \"Box Plot\", ylab = \"Age\", col.axis = \"darkgreen\", col.lab = \"darkgreen\")"},{"title":"Practical 3: Diagrams using R","aim":"To draw heatmaps using the heatmap() function and a percentage stacked area chart using ggplot2.","code":"# 3A. Basic heatmap\nset.seed(110)\ndata <- matrix(rnorm(100, 0, 5), nrow = 10, ncol = 10)\ncolnames(data) <- paste0(\"col\", 1:10)\nrownames(data) <- paste0(\"row\", 1:10)\nheatmap(data)\n\n# Heatmap with colorRampPalette\nmy_colors <- colorRampPalette(c(\"cyan\", \"darkgreen\"))\nheatmap(data, col = my_colors(100))\n\n# Heatmap without dendrograms, with axis labels and margins\nheatmap(data, col = my_colors(100), main = \"Customized Heatmap\", xlab = \"Columns\", ylab = \"Rows\", margins = c(5, 10), Colv = NA, Rowv = NA)\n\n\n# 3B. Percentage stacked area chart\nlibrary(ggplot2)\nlibrary(dplyr)\ngroup <- rep(c(\"NORTH\", \"SOUTH\", \"EAST\", \"WEST\"), times = 4)\nyear <- as.numeric(rep(seq(2017, 2020), each = 4))\nprice <- c(56.76171, 71.79472, 61.76387, 85.14322, 86.03499, 70.49531, 77.26497, 57.61432, 86.39476, 77.41802, 99.03071, 62.08326, 57.90093, 65.38019, 86.11634, 88.98761)\ndata <- data.frame(year, price, group)\n\n# Stacked area chart\ngraphics.off()\nggplot(data, aes(x = year, y = price, fill = group)) + geom_area()\n\n# Calculate the percentage of each group in every year\ndata <- data %>%\n  group_by(year, group) %>%\n  summarise(n = sum(price)) %>%\n  mutate(percentage = n / sum(n))\n\n# Plot the percentage stacked area chart\nggplot(data, aes(x = year, y = price, fill = group)) +\n  geom_area(position = \"fill\") +\n  scale_y_continuous(labels = scales::percent) +\n  ggtitle(\"Percentage Stacked-Area Plot\")"},{"title":"Practical 4: Simple Linear Regression using R","aim":"To fit a simple linear regression model, interpret its summary, plot the fitted line, check the residuals and predict new values.","code":"# 4A. Salary data: Salary vs Years of Experience\ndata <- data.frame(\n  Years_Experience = c(1.1, 1.3, 1.5, 2.0, 2.2, 2.9, 3.0, 3.2, 3.2, 3.7, 3.9, 4.0, 4.0, 4.1, 4.5, 4.9, 5.1, 5.3, 5.9, 6.0, 6.8, 7.1, 7.9, 8.2, 8.7, 9.0, 9.5, 9.6, 10.3, 10.5),\n  Salary = c(39343, 46205, 37731, 43525, 39891, 56642, 60150, 54445, 64445, 57189, 63218, 55794, 56957, 57081, 61111, 67938, 66029, 83088, 81363, 93940, 91738, 98273, 101302, 113812, 109431, 105582, 116969, 112635, 122391, 121872)\n)\nplot(data)\n\n# Fit the model and view the summary\nmodel <- lm(Salary ~ Years_Experience, data = data)\nsummary(model)\n\n# Plot the regression line\nplot(data$Years_Experience, data$Salary, pch = 16, xlab = \"Years of Experience\", ylab = \"Salary\", main = \"Salary vs Experience\", col = \"blue\")\nabline(model, col = \"red\", lwd = 2)\n\n# Predict salary for new values\nnew_data <- data.frame(Years_Experience = c(4.0, 4.5, 5.0))\npredicted_salaries <- predict(model, newdata = new_data)\nprint(predicted_salaries)\n\n\n# 4B. mtcars data: mpg vs weight\nsummary(mtcars$wt)\nmodel <- lm(mpg ~ wt, data = mtcars)\nsummary(model)\n\nplot(mtcars$wt, mtcars$mpg, pch = 16, xlab = \"Weight (1000 lbs)\", ylab = \"Miles per Gallon\", main = \"mpg vs weight\", col = \"blue\")\nabline(model, col = \"red\", lwd = 2)\n\n# Residual plot\nplot(fitted(model), resid(model), xlab = \"Fitted values\", ylab = \"Residuals\", main = \"Residuals vs Fitted\")\nabline(h = 0, lty = 2)"},{"title":"Practical 5: Weighted Least Squares using R","aim":"To detect heteroscedasticity in a regression model and fit a weighted least squares model; to check normality of the residuals and autocorrelation using the Durbin-Watson test.","code":"# Step 1: Create the data\ndf <- data.frame(hours = c(1, 1, 2, 2, 2, 3, 4, 4, 4, 5, 5, 5, 6, 6, 7, 8), score = c(48, 78, 72, 70, 66, 92, 93, 75, 75, 80, 95, 97, 90, 96, 99, 99))\n\n# Step 2: Fit the simple linear regression model\nmodel <- lm(score ~ hours, data = df)\nsummary(model)\nplot(fitted(model), resid(model), xlab = \"Fitted values\", ylab = \"Residuals\")\nabline(0, 0)\n\n# Step 3: Test for heteroscedasticity\nlibrary(lmtest)\nbptest(model)\n\n# Step 4: Weighted least squares\nwt <- 1 / lm(abs(model$residuals) ~ model$fitted.values)$fitted.values^2\nwls_model <- lm(score ~ hours, data = df, weights = wt)\nsummary(wls_model)\n\n\n# 5a. Normality of residuals\nshapiro.test(resid(model))\nqqnorm(resid(model), main = \"Normal Q-Q Plot of Residuals\")\nqqline(resid(model), col = \"red\")\n\n# 5b. Durbin-Watson test\nlibrary(lmtest)\ndwtest(model)"},{"title":"Practical 6: Multiple Linear Regression and Ridge Regression using R","aim":"To fit a multiple linear regression model, detect multicollinearity using the correlation matrix and the Variance Inflation Factor (VIF), and apply Ridge regression to handle it.","code":"# 6A. Multiple linear regression (mtcars)\nmodel <- lm(mpg ~ disp + hp + wt + drat, data = mtcars)\nsummary(model)\n\n# 6B. Multicollinearity\ncor(mtcars[, c(\"disp\", \"hp\", \"wt\", \"drat\")])\nlibrary(car)\nvif(model)\n\n\n# 6C. Ridge regression\ninstall.packages(c(\"data.table\", \"dplyr\", \"glmnet\", \"caret\"))\nlibrary(data.table)\nlibrary(dplyr)\nlibrary(glmnet)\nlibrary(caret)\n\n# 1. Load and combine the train and test data\ntrain <- fread(\"Train.csv\")\ntest <- fread(\"Test.csv\")\ntest[, Item_Outlet_Sales := NA]\ncombi <- rbind(train, test)\n\n# 2. Treat missing and zero values\nmissing_index <- which(is.na(combi$Item_Weight))\nfor (i in missing_index) {\n  item <- combi$Item_Identifier[i]\n  combi$Item_Weight[i] <- mean(combi$Item_Weight[combi$Item_Identifier == item], na.rm = T)\n}\nzero_index <- which(combi$Item_Visibility == 0)\nfor (i in zero_index) {\n  item <- combi$Item_Identifier[i]\n  combi$Item_Visibility[i] <- mean(combi$Item_Visibility[combi$Item_Identifier == item], na.rm = T)\n}\n\n# 3. Encode the categorical features\ncombi[, Outlet_Size_num := ifelse(Outlet_Size == \"Small\", 0, ifelse(Outlet_Size == \"Medium\", 1, 2))]\ncombi[, Outlet_Location_Type_num := ifelse(Outlet_Location_Type == \"Tier 3\", 0, ifelse(Outlet_Location_Type == \"Tier 2\", 1, 2))]\ncombi[, c(\"Outlet_Size\", \"Outlet_Location_Type\") := NULL]\nohe_1 <- dummyVars(\"~.\", data = combi[, -c(\"Item_Identifier\", \"Outlet_Establishment_Year\", \"Item_Type\")], fullRank = T)\nohe_df <- data.table(predict(ohe_1, combi[, -c(\"Item_Identifier\", \"Outlet_Establishment_Year\", \"Item_Type\")]))\ncombi <- cbind(combi[, c(\"Item_Identifier\")], ohe_df)\n\n# 4. Transform and scale the numeric features\ncombi[, Item_Visibility := log(Item_Visibility + 1)]\nnum_vars <- which(sapply(combi, is.numeric))\nnum_vars_names <- names(num_vars)\ncombi_numeric <- combi[, setdiff(num_vars_names, \"Item_Outlet_Sales\"), with = F]\nprep_num <- preProcess(combi_numeric, method = c(\"center\", \"scale\"))\ncombi_numeric_norm <- predict(prep_num, combi_numeric)\ncombi[, setdiff(num_vars_names, \"Item_Outlet_Sales\") := NULL]\ncombi <- cbind(combi, combi_numeric_norm)\n\n# 5. Split back into train and test\ntrain <- combi[1:nrow(train)]\ntest <- combi[(nrow(train) + 1):nrow(combi)]\ntest[, Item_Outlet_Sales := NULL]\n\n# 6. Ridge regression with cross-validation\nset.seed(123)\ncontrol <- trainControl(method = \"cv\", number = 5)\nGrid_ri_reg <- expand.grid(alpha = 0, lambda = seq(0.001, 0.1, by = 0.0002))\nRidge_model <- train(x = train[, -c(\"Item_Identifier\", \"Item_Outlet_Sales\")],\n                     y = train$Item_Outlet_Sales, method = \"glmnet\",\n                     trControl = control, tuneGrid = Grid_ri_reg)\ncat(\"Mean validation test RMSE = \", mean(Ridge_model$resample$RMSE))\nplot(Ridge_model, main = \"Ridge Regression\")"}]},{"name":"Business Forecasting","type":"steps","practicals":[{"title":"Practical 1: Moving Average, Weighted Moving Average & Forecast Accuracy","aim":"To calculate and compare 3-month Simple Moving Averages (SMA) and Weighted Moving Averages (WMA) for retail demand, evaluate forecast accuracy using error metrics (MAE, MSE, RMSE, MAPE), and forecast demand for the upcoming period.","steps":"Formulas & Mathematical Model:\n3-Month SMA: $(Y_{t-1} + Y_{t-2} + Y_{t-3}) / 3$   \n3-Month WMA (Weights 1, 2, 3): $[(1 * Y_{t-3}) + (2 * Y_{t-2}) + (3 * Y_{t-1})] / 6$   \nAbsolute Error: ABS(Actual - Forecast)   \nMAE: Sum of Absolute Errors / n   \n\nExcel Steps:\nEnter Months in Column A and Actual Demand in Column B.   \nSMA: In cell C5 (April), enter =AVERAGE(B2:B4) and drag down to row 14 (Next Jan).   \nWMA: In cell D5 (April), enter =(B2*1 + B3*2 + B4*3)/6 and drag down to row 14.   \nErrors: Calculate Absolute Error for SMA in Column E using =ABS(B5-C5) and for WMA in Column F using =ABS(B5-D5). \nCalculate squared and percentage errors similarly.   \nAverages: Use =AVERAGE() at the bottom of the error columns to find MAE, MSE, and MAPE. Use =SQRT(MSE) to find RMSE.   \nChart: Select the Month, Actual, SMA, and WMA columns, then go to Insert → Line Chart."},{"title":"Practical 2: Least-Squares Trend with Forecasting and Scenario Analysis","aim":"To fit a linear trend equation using the least-squares method, use 2022 as the origin, calculate trend values, forecast production for 2027-2029, calculate the percentage difference and coefficient of determination (R2), plot the results, and determine when capacity limits will be breached.","steps":"Formulas & Mathematical Model: \n Linear Trend Equation: Y = a + bX \n Time Variable (X): X = Year - 2022 \n Intercept (a): a = Sum(Y) / n \n Slope (b): b = Sum(XY) / Sum(X2) \n Percentage Difference: ((Actual - Trend) / Trend) * 100 \n Coefficient of Determination (R2): Explained Variation / Total Variation (or calculated via Excel RSQ) \n\nExcel Steps: \n1. Enter the Years in column A and Production (Y) in column B.  \n2. Create column C for 'X' by subtracting the base year 2022 from each Year (formula: =A2-2022). \n3. Create column D for 'X2' (formula: =C2^2) and column E for 'XY' (formula: =C2*B2).  \n4. Sum columns B, C, D, and E at the bottom. (Note: The sum of X will be 0).  \n5. Calculate 'a' by dividing the sum of Y by 9 (the total number of years).  \n6. Calculate 'b' by dividing the sum of XY by the sum of X2.  \n7. Calculate Trend Values (Y) using the equation Y = a + (b * X) for each year.  \n8. Alternative Excel Method: Use =INTERCEPT(B2:B10, C2:C10) and =SLOPE(B2:B10, C2:C10) to verify your manual calculations."},{"title":"Practical 3: Quarterly Seasonal Variation Using Simple Averages","aim":"To calculate quarterly seasonal indices using the Method of Simple Averages, verify that they sum to approximately 400%, and distribute a forecasted annual order volume across the four quarters to identify peak capacity requirements.","steps":"Formulas & Mathematical Model: \n Quarterly Average: Sum of Quarter Values / n \n Grand Average: Sum of all Quarterly Averages / 4 \n Seasonal Index (SI): (Quarterly Average / Grand Average) * 100 \n Expected Quarterly Orders: (Annual Forecast / 4) * (SI / 100) \n\nExcel Steps: \n1. Enter the Years in column A and the Q1, Q2, Q3, Q4 data in columns B, C, D, and E.  \n2. In row 7, calculate the average sales for each quarter using the formula =AVERAGE(B2:B6) for Q1, and drag across to Q4.  \n3. Calculate the Grand Average in cell F7 by taking the average of the four quarterly averages: =AVERAGE(B7:E7).  \n4. In row 8, calculate the Seasonal Index for each quarter by dividing the specific quarterly average by the Grand Average and multiplying by 100. (e.g., for Q1: =(B7/$F$7)*100).  \n5. Verify the indices sum to 400 using =SUM(B8:E8).  \n6. In row 9, distribute the 2026 forecast (3,600 thousand total, which averages to 900 per quarter). Multiply 900 by the quarter's index divided by 100. (e.g., =900*(B8/100)).  \n7. Chart: Select the Quarter names and their corresponding Seasonal Indices, go to Insert > Charts, and select a Column Chart to visualize the seasonality."},{"title":"Practical 4: Ratio-to-Moving-Average Seasonal Analysis","aim":"To calculate quarterly seasonal indices using the Ratio-to-Moving-Average method, determine corrected seasonal indices, estimate future quarterly occupancy based on a projected annual average, and evaluate hotel staffing strategies.","steps":"Formulas & Mathematical Model: \n 4-Quarter Moving Average (MA): Sum of 4 consecutive quarters / 4 \n Centered Moving Average (CMA): (Previous 4-Q MA + Current 4-Q MA) / 2 \n Ratio to Moving Average: (Actual Occupancy / Centered MA) * 100 \n Correction Factor: 400 / Sum of Unadjusted Average Ratios \n Corrected Seasonal Index: Unadjusted Average Ratio * Correction Factor \n Quarterly Forecast: Expected Annual Average * (Corrected Seasonal Index / 100) \n\nExcel Steps: \n1. Data Setup: List the data sequentially in columns (A: Year, B: Quarter, C: Actual Occupancy).  \n2. 4-Quarter MA: In column D, starting at Q3 of the first year, use =AVERAGE(C2:C5) and drag down.  \n3. Centered MA: In column E, starting at Q3, average the two adjacent 4-Quarter MAs using =AVERAGE(D2:D3) and drag down.  \n4. Ratio to MA: In column F, calculate the ratio using =(C4/E4)*100.  \n5. Average Ratios: Group the calculated ratios by quarter (Q1, Q2, Q3, Q4) and use the =AVERAGE() function to find the unadjusted mean ratio for each specific quarter.  \n6. Correction Factor & Corrected Indices: Sum the four unadjusted averages. Divide 400 by this sum to get the Correction Factor. Multiply each unadjusted average by the Correction Factor to get the final Corrected Seasonal Indices.  \n7. 2026 Forecast: Multiply the expected average occupancy (75%) by each quarter's Corrected Index (divided by 100)."},{"title":"Practical 5: Deseasonalization and Trend Forecasting","aim":"To deseasonalize quarterly FMCG (Fast-Moving Consumer Goods) sales data to remove predictable seasonal effects, fit a linear trend to the smoothed data, and generate re-seasonalized forecasts for the upcoming year.","steps":"Formulas & Mathematical Model: \n Time Period (t): 1, 2, 3, ..., n \n Deseasonalized Sales: Actual Sales / (Seasonal Index / 100) \n Linear Trend Equation: Trend = a + b(t) \n Re-seasonalized Forecast: Trend Forecast * (Seasonal Index / 100) \n Percentage Growth: [ (Forecasted Sales - Previous Year Actual) / Previous Year Actual ] * 100 \n\nExcel Steps: \n1. Data Entry: Create columns for Time Period t (1 to 8), Quarter, Actual Sales, and Seasonal Index.  \n2. Deseasonalize: In the next column, calculate deseasonalized sales. For row 2 (t=1), type =C2/(D2/100) and drag it down to row 9 (t=8).  \n3. Trend Equation: Calculate your intercept (a) and slope (b) using Excel functions. \n4. For slope: =SLOPE(E2:E9, A2:A9) (assuming E is Deseasonalized Sales and A is Time Period t). \n5. For intercept: =INTERCEPT(E2:E9, A2:A9). \n6. Calculate Trend: In a new column, plug t into the linear trend formula for periods 1 through 12. Formula: =$Intercept$ + ($Slope$ * A2).  \n7. Forecast & Re-seasonalize: For the next four quarters (t=9 to 12), calculate the final forecast by multiplying the trend value by that quarter's Seasonal Index (divided by 100).  \n8. Percentage Growth: Compare the final forecast for Year 3 against the actuals from Year 2 using =(Forecast - Actual)/Actual * 100.  \n9. Plotting: Select your data and insert a Line Chart featuring four lines: Actual Sales, Deseasonalized Sales, Trend, and Final Forecast."},{"title":"Practical 6: Correlation with Business Interpretation","aim":"To determine the relationship between digital advertising expenditure and online sales by calculating Karl Pearson's correlation coefficient ($r$) and the coefficient of determination ($R^2$), visualising the data with a scatter diagram and trendline, and differentiating between statistical correlation and business causation.","steps":"Formulas & Mathematical Model: \n Karl Pearson's Correlation (r): r = [ nSum(XY) - Sum(X)Sum(Y) ] / SQRT( [nSum(X2) - (Sum(X))2] * [nSum(Y2) - (Sum(Y))2] ) \n Coefficient of Determination (R^2): R2 = r * r \n Linear Trendline Equation: Y = a + bX \n\nExcel Steps: \n1. Data Entry: Enter \"Month\" in column A, \"Advertising (X)\" in column B, and \"Sales (Y)\" in column C. \n2. Calculate Correlation (r): In an empty cell, type =CORREL(B2:B13, C2:C13) to find Karl Pearson's correlation coefficient. \n3. Calculate Coefficient of Determination (R2): In another cell, square the correlation result using =r_cell^2 or use the direct Excel formula =RSQ(C2:C13, B2:B13). \n4. Construct Scatter Diagram: Highlight the data in columns B (Advertising) and C (Sales). Go to the Insert tab, look for the Charts group, and select Scatter (the chart with dots). \n5. Add Linear Trendline: Click on any data point in the chart so they are highlighted, right-click, and select Add Trendline. Choose Linear. \n6. Display Equation and R2: In the Format Trendline pane on the right side of the screen, check the boxes for Display Equation on chart and Display R-squared value on chart."},{"title":"Practical 7: Price-Demand Regression and Elasticity","aim":"To model the relationship between product price and consumer demand using linear regression, forecast future demand and revenue at a new price point, and evaluate price elasticity and revenue optimization.","steps":"Formulas & Mathematical Model: \n Linear Regression Equation: Demand (Y) = a + bX \n Slope (b): b = Sum((X - Mean X)*(Y - Mean Y)) / Sum((X - Mean X)2) \n Intercept (a): a = Mean(Y) - b*Mean(X) \n Revenue: Price * Demand \n Point Elasticity of Demand: Elasticity = Slope * (Selected Price / Observed Demand) \n\nExcel Steps: \n1. Data Entry: Enter \"Price (X)\" in column A and \"Demand (Y)\" in column B. \n2. Regression Parameters: \n3. In an empty cell, calculate the slope using =SLOPE(B2:B10, A2:A10). \n4. Calculate the intercept using =INTERCEPT(B2:B10, A2:A10). \n5. Calculate the Coefficient of Determination ($R^2$) using =RSQ(B2:B10, A2:A10). \n6. Calculate Revenue: In column C, calculate daily revenue for each row using the formula =A2*B2 and drag it down. \n7. Forecast Demand at ₹95: In a new cell, plug ₹95 into the trendline equation: =$Intercept$ + ($Slope$ * 95). \n8. Estimate Revenue at ₹95: Multiply the forecasted demand by 95. \n9. Calculate Elasticity: Select a price point (e.g., ₹75). Multiply your calculated Slope by (75 / Actual Demand at 75)."},{"title":"Practical 8: Multiple Regression for Branch Sales","aim":"To develop a multiple regression model that forecasts monthly branch sales based on two independent variables: advertising expenditure and customer traffic. The practical explores coefficient estimation, residuals, adjusted R2, and the impact of multicollinearity.","steps":"Formulas & Mathematical Model: \n1. Multiple Regression Equation: Y = Intercept + (b1 * X1) + (b2 * X2) \n2. Predicted Sales: The Y value calculated when plugging observed X1 and X2 values into the regression equation. \n3. Residuals: Actual Sales (Y) - Predicted Sales (Y) \n4. Forecast (Task 7): Forecast Y = Intercept + (b1 * 40) + (b2 * 95) \n\nExcel Steps (Data Analysis ToolPak): \n1. Data Entry: Enter your headers in Row 1. Put Advertising in Column B, Traffic in Column C, and Sales in Column D. \n2. Launch ToolPak: Go to the Data tab on the ribbon and click Data Analysis (if you don't see it, you must enable the Analysis ToolPak add-in via File > Options > Add-ins). \n3. Run Regression: Select Regression from the list and click OK. \n4. Input Ranges: \n5. Input Y Range: Select your Sales data (D1:D11, including header). \n6. Input X Range: Select BOTH Advertising and Traffic columns together (B1:C11, including headers). \n7. Settings: Check the Labels box. Check the Residuals box. Select an Output Range on your current sheet (e.g., cell F1) to display the results. Click OK."},{"title":"Practical 9: Advanced Index Number Problem","aim":"To measure price inflation for a supermarket basket of five commodities by calculating the Laspeyres, Paasche, and Fisher Ideal Price Indices. The practical also evaluates the theoretical difference between the index weighting methods and verifies the Fisher index using the time-reversal test.","steps":"Formulas & Mathematical Model:\nLaspeyres Price Index (L): L = (Sum of p1q0 / Sum of p0q0) * 100   \nPaasche Price Index (P): P = (Sum of p1q1 / Sum of p0q1) * 100   \nFisher Ideal Price Index (F): F = SQRT(L * P)   \nTime-Reversal Test: P01 * P10 = 1   \n\nExcel Steps: \n1. Data Entry: Create headers for Commodity, Base Price (p0), Base Qty (q0), Current Price (p1), and Current Qty (q1) in columns A through E. \n2. Calculate Products: Create four new columns (F to I) for the index products: a. p0q0: =B2*C2 b. p1q0: =D2*C2 c. p0q1: =B2*E2 d. p1q1: =D2*E2 \n3. Summation: Use the =SUM() function at the bottom of columns F, G, H, and I to get the totals for each product column. \n4. Index Dashboard Creation: Below your table, create a summary area. \n5. Laspeyres: = (Sum of p1q0 / Sum of p0q0) * 100 \n6. Paasche: = (Sum of p1q1 / Sum of p0q1) * 100 \n7. Fisher: = SQRT(Laspeyres_Cell * Paasche_Cell) (using the raw calculated values). \n8. Percentage Increase: Subtract 100 from each calculated index."},{"title":"Practical 10: Forecast Accuracy Audit","aim":"To perform a comprehensive audit of two competing forecasting models (Model A and Model B) by calculating and comparing standard error metrics including MAE, MSE, RMSE, MAPE, and Bias. The practical explores how to identify systematic forecasting tendencies and why different error metrics can yield varying conclusions about model performance.","steps":"Formulas & Mathematical Model: \n Error (E): Actual - Forecast \n Absolute Error (|E|): ABS(Actual - Forecast) \n Squared Error: E2 \n Absolute Percentage Error (APE): (|E| / Actual) * 100 \n Mean Error (Bias): Average of all Errors\n Mean Absolute Error (MAE): Average of all Absolute Errors \n Mean Squared Error (MSE): Average of all Squared Errors \n Root Mean Squared Error (RMSE): SQRT(MSE) \n Mean Absolute Percentage Error (MAPE): Average of all APEs \n\nExcel Steps: \n1. Data Entry: Create columns for Month, Actual, Model A, and Model B. \n2. Calculate Model A Errors: Next to Model A, create four new columns: Error A, Abs Error A, Sq Error A, and APE A. a. For Error: =B2-C2 b. For Abs Error: =ABS(E2) (assuming E is the Error column) c. For Sq Error: =E2^2 d. For APE: =(F2/B2)*100 (assuming F is Abs Error and B is Actual) \n3. Repeat for Model B: Create the same four calculation columns for Model B's forecast. 20  \n4. Summary Dashboard: At the bottom of your sheet, use the =AVERAGE() function on your newly created columns to generate the final MAE, MSE, MAPE, and Bias metrics for both models. For RMSE, use =SQRT(MSE_Cell). \n5. Plotting: Select the Month, Actual, Model A, and Model B columns. Go to Insert > Line Chart to visually compare how tightly both models track the actual sales line."},{"title":"Practical 11: Integrated Business Forecasting Case","aim":"To perform a complete, end-to-end forecasting audit for a coffee chain's expansion strategy. This includes deseasonalizing historical sales, calculating a linear trend using coded time values, applying seasonal indices to forecast future months, and evaluating model accuracy to drive actionable business and inventory decisions.","steps":"Formulas & Mathematical Model: \n Deseasonalized Sales: (Actual Sales / Seasonal Index) * 100 \n Linear Trend Equation: Y = a + bX (Where a = Average of Deseasonalized Sales, and b = Slope) \n Slope (b) for Coded Time: b = Sum(X * Deseasonalized Sales) / Sum(X^2) \n Final Forecast: (Calculated Trend * Seasonal Index) / 100 \n Error (E): Actual Sales - Final Forecast \n Absolute Error (|E|): ABS(Actual - Final Forecast) \n Absolute Percentage Error (APE): (|E| / Actual) * 100 \n\nExcel Steps: \n1. Part A (Deseasonalization): Enter Month, Actual Sales, and Seasonal Index (SI) in columns A, B, and C. In column D, calculate Deseasonalized Sales using =(B2/C2)*100. At the bottom, calculate the average of column D. \n2. Part B (Trend): In column E, input the coded time $X$ from -5.5 to +5.5. Calculate $X^2$ and $X*Deseasonalized$ to find your slope ($b$) and intercept ($a$). Create column F for Trend Values using the formula =$a$ + ($b$ * E2). \n3. Part C (Historical Forecast & Errors): In column G, recreate the historical forecasts by re-applying the seasonality: =(F2*C2)/100. Then, create columns for Error (=B2-G2), Absolute Error, Squared Error, and APE to satisfy Part D. 22  \n4. Part C (Future Forecast): Extend the table for 4 new rows. The new coded $X$ values will be 6.5, 7.5, 8.5, and 9.5. Use the trend equation to find the base trend, then multiply by the respective January–April SI to get the final predicted sales. \n5. Part E (Dashboard): Use standard Excel averaging functions at the bottom of your error columns to calculate final MAE, MSE, RMSE, and MAPE. Highlight peak and trough months using Conditional Formatting (Color Scales)."},{"title":"Practical 12: Advanced Forecasting — Double Moving Average ","aim":"To forecast future manufacturing demand using a Double Moving Average (DMA) model, calculate trend-adjusted forecast variables (at and bt), and compare the model's performance against a Simple Moving Average (SMA). The practical explores how DMA corrects the inherent \"lag\" found in standard moving averages when dealing with strongly trending data. ","steps":"Formulas & Mathematical Model: \n Simple Moving Average (Mt): Average of demand over n periods. \n Double Moving Average (M't): Average of M't over n periods. \n Level Component (at): at = 2Mt - M't \n Trend Component (bt): bt = [2/(n-1)](Mt - M't). (Since n=3 for this exercise, 2/(3-1) = 1, simplifying the formula to bt = Mt - M't). \n Future Forecast (Ft+m): Ft+m = at + bt m (where m is the number of periods ahead to forecast). \n\nExcel Steps: \n1. Data Entry: Create columns for Month, Demand, Mt, M't, at, bt, Forecast, and Error. \n2. First Moving Average (Mt): In row 3 (Month 3), use =AVERAGE(B2:B4). Drag down. \n3. Second Moving Average (M't): In row 5 (Month 5), use =AVERAGE(C4:C6) (averaging the three most recent Mt values). Drag down. \n4. Calculate at and bt: Starting in row 5, calculate at using  =(2*C6)-D6 and bt using = C6 - D6. Drag both down. \n5. Calculate Historical Forecast: Starting in row 6 (Month 6), calculate the forecast based on the previous month's variables (m=1). Formula: =E5 + (F5*1). \n6. Future Forecasts: For months 13, 14, and 15, use Month 12's at and bt values, changing m to 1, 2, and 3 respectively. "},{"title":"Practical 13: Weighted Moving Average with Business Cost ","aim":"To evaluate three moving average forecasting models (SMA, WMA 1:2:3, and WMA 1:3:5) based on their statistical accuracy and their financial impact. This practical explores asymmetric loss functions, demonstrating how unequal business costs (under-forecasting at ₹12/unit vs. over-forecasting at ₹5/unit) influence model selection. ","steps":"Formulas & Mathematical Model: \nSimple Moving Average (SMA): Ft = (D_t-1 + D_t-2 + D_t-3) / 3   \nWeighted Moving Average (WMA 1:2:3): Ft = (3(D_t-1) + 2(D_t-2) + 1(D_t-3)) / 6   \nWeighted Moving Average (WMA 1:3:5): Ft = (5(D_t-1) + 3(D_t-2) + 1(D_t-3)) / 9   \nError (Et): Actual - Forecast   \nCost Function: If Et > 0 (Under-forecast), Cost = Et * 12. If Et < 0 (Over-forecast), Cost = ABS(Et) * 5\n\nExcel Steps: \n1. Data Setup: Create headers for Month, Actual Demand, SMA, WMA (1:2:3), and WMA (1:3:5). \n2. Calculate Forecasts: Starting in Row 5 (April): \n3. SMA (Cell C5): =AVERAGE(B2:B4) \n4. WMA 1:2:3 (Cell D5): =((B4*3)+(B3*2)+(B2*1))/6 \n5. WMA 1:3:5 (Cell E5): =((B4*5)+(B3*3)+(B2*1))/9 \n6. Drag all formulas down to December. \n7. Calculate Errors: Create three new columns for the Error of each model (=Actual - Forecast). \n8. Calculate Costs: Create three additional columns for the Cost of each model. Use an IF statement to apply the asymmetric penalties: \n9. =IF(Error_Cell > 0, Error_Cell * 12, ABS(Error_Cell) * 5) \n10. Drag down to December. \n11. Dashboard Summaries: At the bottom, calculate the SUM() for each Cost column to find the total financial impact, and calculate the AVERAGE(ABS(Error)) (MAE) to find statistical accuracy. "},{"title":"Practical 14: Regression-based Demand Forecasting with Scenario Analysis ","aim":"To construct a multiple regression model that estimates product demand based on three independent variables: own price, advertising expenditure, and competitor price. The practical evaluates the model's statistical strength (R-squared) and uses the resulting equation to predict demand and maximize expected revenue across three different strategic business scenarios. ","steps":"Formulas & Mathematical Model: \n Multiple Regression Equation: Demand = a + b1(Price) + b2(Advertising) + b3(Competitor Price) \n Intercept (a): The baseline demand if all other variables were zero. \n Coefficients (b1, b2, b3): The change in demand for every one-unit change in the respective variable. \n R-Squared (R2): The percentage of total variation in demand that is explained by these three variables. \n Expected Revenue: Predicted Demand * Own Price \n\nExcel Steps: \n1. Run the Regression (Tasks 1, 2, & 3): o Enter the dataset into columns A through E (Month, Price, Advertising, Competitor Price, Demand). \no Go to Data > Data Analysis > Regression. (If you don't see Data Analysis, enable the Analysis ToolPak in Excel Options > Add-ins). o Input Y Range: Select your Demand column (E1:E11, including header). \no Input X Range: Select the Price, Advertising, and Competitor Price columns together (B1:D11, including headers). \no Check the Labels box and click OK. Excel will generate a Summary Output sheet containing your Intercept (a), Coefficients (b1, b2, b3), R2, and Adjusted R2. \n\n2. Set Up the Scenario Analysis Dashboard (Tasks 4, 5, 6, & 7): \no On a new sheet (or below your data), create a dashboard with headers: Scenario, Price, Advertising, Comp Price, Predicted Demand, and Expected Revenue. \no Enter the parameters for Scenarios A, B, and C into their respective columns. \no Calculate Predicted Demand: Use absolute references ($) to link to the coefficients from your regression output. The formula will look like this: \n =Intercept + (b1 * Price_Cell) + (b2 * Ad_Cell) + (b3 * CompPrice_Cell) \no Calculate Expected Revenue: =Predicted_Demand_Cell * Price_Cell "},{"title":"Practical 15: Comprehensive Business Forecasting Challenge ","aim":"To perform an end-to-end time-series analysis and forecasting audit using 24 months of historical sales data. This capstone practical requires applying classical multiplicative decomposition (trend + seasonality), evaluating accuracy using a holdout period, comparing the results against a linear regression alternative, and translating the statistical outputs into actionable inventory and staffing recommendations. ","steps":"Formulas & Mathematical Model: \n Time-Series Components: Multiplicative Model (Actual = Trend * Seasonality * Error) \n Seasonal Index (SI): Calculated using the Ratio-to-Moving Average method (Actual / Centered_Moving_Average). \n Deseasonalized Sales: Actual / SI \n Linear Trend (Classical): Y = a + bX (where X is the coded time period). \n Final Seasonal Forecast: Trend * SI \n Regression Alternative: Sales = a + b1(Month_Index) + b2(Seasonal_Dummy_Variables) or a simple Sales = a + bX compared to the deseasonalized baseline. \n\nExcel Steps: \n1. Data Setup & Identification (Task 1): Create columns for Month (Jan-Dec repeated twice), Time (t) (1 to 24), and Actual Sales. Visually inspecting the data reveals two clear components: an upward Trend and recurring Seasonality (spikes in Dec/Oct/Aug). \n2. Moving Averages & Seasonal Indices (Tasks 2 & 3): 30  a. Calculate a 12-month Moving Average, then a Centered Moving Average (CMA) to align the values perfectly with specific months. b. Divide Actual Sales by the CMA to get the specific seasonal ratio for each month. c. Average the ratios for all Januarys, all Februarys, etc., to find the final 12 Seasonal Indices (SI). \n3. Deseasonalization & Trend Equation (Tasks 4 & 5): a. Create a Deseasonalized column: =Actual / SI. b. Run a regression (Data > Data Analysis) using Time (t) as X and Deseasonalized Sales as Y to find your Intercept (a) and Slope (b). \n4. Forecast & Re-seasonalize (Tasks 6 & 7): a. Extend Time (t) down to 36 for the next 12 months. b. Calculate the base trend for t=25 to 36 using =a + (b * t). c. Multiply this trend by the corresponding monthly SI to get the final re-seasonalized forecast. \n5. Holdout Period & Accuracy (Tasks 8 & 9): a. Use Year 1 (Months 1-12) as your training data to forecast Year 2 (Months 13-24). b. Compare your Year 2 forecast against the actual Year 2 sales to calculate the Error, Absolute Error, and Squared Error. c. Use =AVERAGE() on these columns to calculate MAE, MSE, RMSE, and MAPE for the holdout period. \n6. Alternative Regression Model (Task 10): a. Run a simple Linear Regression using just Time (t) against Actual Sales (ignoring seasonality completely) to generate a competing baseline forecast. \n7. Dashboard Creation (Task 15): a. Organize all columns cleanly. Apply Conditional Formatting (Color Scales) to the Seasonal Index column to instantly highlight peak and low-demand months. "}]}];
   const CryptoEngine = {
     async deriveKey(password, saltUint8) {
       const enc = new TextEncoder();
-      const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        enc.encode(password),
-        { name: 'PBKDF2' },
-        false,
-        ['deriveKey']
-      );
-      return crypto.subtle.deriveKey(
-        {
-          name: 'PBKDF2',
-          salt: saltUint8,
-          iterations: 100000,
-          hash: 'SHA-256'
-        },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['encrypt', 'decrypt']
-      );
+      const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']);
+      return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: saltUint8, iterations: 100000, hash: 'SHA-256' }, keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
     },
-
     async encrypt(dataObj, key, saltUint8) {
       const enc = new TextEncoder();
       const iv = crypto.getRandomValues(new Uint8Array(12));
-      const plaintext = JSON.stringify(dataObj);
-      const encrypted = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        enc.encode(plaintext)
-      );
-      return {
-        v: 2,
-        salt: Array.from(saltUint8).map(b => b.toString(16).padStart(2, '0')).join(''),
-        iv: Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join(''),
-        ciphertext: Array.from(new Uint8Array(encrypted)).map(b => b.toString(16).padStart(2, '0')).join('')
-      };
+      const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(dataObj)));
+      return { v: 2, salt: Array.from(saltUint8).map(b => b.toString(16).padStart(2,'0')).join(''), iv: Array.from(iv).map(b => b.toString(16).padStart(2,'0')).join(''), ciphertext: Array.from(new Uint8Array(encrypted)).map(b => b.toString(16).padStart(2,'0')).join('') };
     },
-
     async decrypt(payload, key) {
       const iv = new Uint8Array(payload.iv.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-      const encryptedData = new Uint8Array(payload.ciphertext.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-      const decrypted = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        encryptedData
-      );
-      const dec = new TextDecoder();
-      return JSON.parse(dec.decode(decrypted));
+      const enc = new Uint8Array(payload.ciphertext.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+      const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, enc);
+      return JSON.parse(new TextDecoder().decode(dec));
     }
   };
-
   const SupabaseSync = {
-    client: null,
-    isOnline: false,
-
+    client: null, isOnline: false,
     async init() {
-      const defaultUrl = 'https://dxtssznoudmbigljgqgw.supabase.co';
-      const defaultKey = 'sb_publishable_sDQwLl1CH6dJMULEA9Smuw_pMvNptZn';
-
-      const url = window.SUPABASE_URL || defaultUrl;
-      const key = window.SUPABASE_ANON_KEY || defaultKey;
-
+      const url = window.SUPABASE_URL || 'https://dxtssznoudmbigljgqgw.supabase.co';
+      const key = window.SUPABASE_ANON_KEY || 'sb_publishable_sDQwLl1CH6dJMULEA9Smuw_pMvNptZn';
       if (!window.supabase) {
-        try {
-          await new Promise(resolve => {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-            script.onload = resolve;
-            script.onerror = resolve;
-            document.head.appendChild(script);
-          });
-        } catch (e) {}
+        await new Promise(resolve => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; s.onload = resolve; s.onerror = resolve; document.head.appendChild(s); }).catch(() => {});
       }
-
       if (url && key && window.supabase && typeof window.supabase.createClient === 'function') {
-        try {
-          this.client = window.supabase.createClient(url, key);
-          this.isOnline = true;
-        } catch (err) {
-          this.isOnline = false;
-        }
+        try { this.client = window.supabase.createClient(url, key); this.isOnline = true; } catch (e) { this.isOnline = false; }
       }
     },
-
     async fetchAll() {
       if (!this.isOnline || !this.client) return null;
-      try {
-        const { data, error } = await this.client
-          .from('practicals')
-          .select('*')
-          .order('id', { ascending: true });
-        return error ? null : data;
-      } catch (e) {
-        return null;
-      }
+      try { const { data, error } = await this.client.from('practicals').select('*').order('id', { ascending: true }); return error ? null : data; } catch (e) { return null; }
     },
-
     async insertPractical(item) {
       if (!this.isOnline || !this.client) return false;
-      try {
-        const { error } = await this.client
-          .from('practicals')
-          .insert([{
-            subject_name: item.subject_name,
-            practical_title: item.practical_title,
-            aim: item.aim,
-            content: item.content,
-            content_type: item.content_type
-          }]);
-        return !error;
-      } catch (err) {
-        return false;
-      }
-    },
-
-    async deleteAllPracticals() {
-      if (!this.isOnline || !this.client) return false;
-      try {
-        const { error } = await this.client.from('practicals').delete().gt('id', 0);
-        return !error;
-      } catch (e) {
-        return false;
-      }
+      try { const { error } = await this.client.from('practicals').insert([{ subject_name: item.subject_name, practical_title: item.practical_title, aim: item.aim, content: item.content, content_type: item.content_type }]); return !error; } catch (e) { return false; }
     }
   };
-
+  const VAULT_CSS = "\n@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap');\n#_vlt_root,#_vlt_root *{box-sizing:border-box;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}\n#_vlt_root{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;background:#060d1a;color:#e2e8f0;z-index:2147483647;display:flex;flex-direction:column;overflow:hidden;}\n#_vlt_topbar{height:56px;min-height:56px;flex-shrink:0;background:linear-gradient(135deg,#0a1628,#0d1f3a);border-bottom:1px solid rgba(56,189,248,0.15);display:flex;align-items:center;justify-content:space-between;padding:0 20px;box-shadow:0 2px 20px rgba(0,0,0,0.5);}\n#_vlt_brand{display:flex;align-items:center;gap:10px;}\n#_vlt_brand_badge{background:linear-gradient(135deg,#06b6d4,#6366f1);color:#fff;font-size:10px;font-weight:800;letter-spacing:2px;padding:4px 10px;border-radius:6px;text-transform:uppercase;}\n#_vlt_brand_title{font-size:15px;font-weight:700;color:#f1f5f9;letter-spacing:-0.2px;}\n#_vlt_topbar_actions{display:flex;align-items:center;gap:8px;}\n.vlt-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all 0.18s ease;outline:none;white-space:nowrap;font-family:'Inter',sans-serif;}\n.vlt-btn-primary{background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border-color:rgba(99,102,241,0.5);box-shadow:0 2px 10px rgba(99,102,241,0.3);}\n.vlt-btn-primary:hover{background:linear-gradient(135deg,#1d4ed8,#4338ca);box-shadow:0 4px 18px rgba(99,102,241,0.5);transform:translateY(-1px);}\n.vlt-btn-ghost{background:rgba(255,255,255,0.05);color:#94a3b8;border-color:rgba(255,255,255,0.08);}\n.vlt-btn-ghost:hover{background:rgba(255,255,255,0.1);color:#e2e8f0;border-color:rgba(255,255,255,0.15);}\n.vlt-btn-danger{background:rgba(239,68,68,0.1);color:#f87171;border-color:rgba(239,68,68,0.25);}\n.vlt-btn-danger:hover{background:rgba(239,68,68,0.2);color:#ef4444;border-color:rgba(239,68,68,0.5);}\n#_vlt_body{display:flex;flex:1;min-height:0;overflow:hidden;}\n#_vlt_sidebar{width:300px;min-width:300px;max-width:300px;background:#07111e;border-right:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;min-height:0;overflow:hidden;flex-shrink:0;}\n#_vlt_search_wrap{padding:12px 10px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0;}\n#_vlt_search{width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:9px 12px 9px 34px;font-size:13px;color:#e2e8f0;outline:none;transition:border-color 0.2s,background 0.2s;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:10px center;font-family:'Inter',sans-serif;}\n#_vlt_search:focus{border-color:rgba(56,189,248,0.5);background-color:rgba(56,189,248,0.05);}\n#_vlt_search::placeholder{color:#475569;}\n#_vlt_tree{flex:1;overflow-y:auto;padding:8px 6px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent;}\n#_vlt_tree::-webkit-scrollbar{width:4px;}\n#_vlt_tree::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:4px;}\n.vlt-subject-group{margin-bottom:4px;}\n.vlt-subject-hdr{display:flex;align-items:center;justify-content:space-between;padding:9px 10px;border-radius:8px;cursor:pointer;transition:background 0.15s;user-select:none;}\n.vlt-subject-hdr:hover{background:rgba(255,255,255,0.05);}\n.vlt-subject-hdr-left{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;}\n.vlt-arrow{font-size:9px;color:#475569;transition:transform 0.2s;flex-shrink:0;}\n.vlt-arrow.open{transform:rotate(90deg);color:#38bdf8;}\n.vlt-subject-name{font-size:13px;font-weight:600;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}\n.vlt-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:0.3px;flex-shrink:0;}\n.vlt-badge-code{background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.25);}\n.vlt-badge-steps{background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.25);}\n.vlt-prac-list{display:none;padding:2px 0 4px 20px;}\n.vlt-prac-list.open{display:block;}\n.vlt-prac-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;margin-bottom:1px;font-size:12.5px;color:#64748b;cursor:pointer;transition:all 0.15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;}\n.vlt-prac-item:hover{background:rgba(255,255,255,0.05);color:#cbd5e1;border-color:rgba(255,255,255,0.06);}\n.vlt-prac-item.active{background:linear-gradient(135deg,rgba(37,99,235,0.25),rgba(79,70,229,0.2));color:#93c5fd;border-color:rgba(99,102,241,0.35);font-weight:600;}\n.vlt-prac-dot{width:5px;height:5px;border-radius:50%;background:#334155;flex-shrink:0;transition:background 0.15s;}\n.vlt-prac-item.active .vlt-prac-dot{background:#60a5fa;}\n.vlt-prac-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}\n.vlt-empty-folder{padding:8px 10px;font-size:12px;color:#334155;font-style:italic;}\n#_vlt_viewer{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;background:#060d1a;min-width:0;}\n#_vlt_empty_state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#1e293b;text-align:center;padding:40px;}\n#_vlt_empty_icon{width:80px;height:80px;border-radius:24px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:20px;}\n#_vlt_empty_state h3{font-size:18px;color:#334155;margin-bottom:8px;font-weight:600;}\n#_vlt_empty_state p{font-size:13px;color:#1e293b;line-height:1.6;max-width:280px;}\n#_vlt_content_area{flex:1;min-height:0;height:100%;overflow-y:auto;padding:28px 32px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent;}\n#_vlt_content_area::-webkit-scrollbar{width:5px;}\n#_vlt_content_area::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px;}\n.vlt-prac-card{max-width:900px;margin:0 auto;}\n.vlt-prac-card-header{background:linear-gradient(135deg,#0a1628,#0f1f3a);border:1px solid rgba(255,255,255,0.08);border-radius:12px 12px 0 0;padding:24px 28px 20px;}\n.vlt-prac-meta-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;}\n.vlt-prac-subject-tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#38bdf8;}\n.vlt-prac-title{font-size:22px;font-weight:800;color:#f1f5f9;line-height:1.3;margin-bottom:16px;letter-spacing:-0.3px;}\n.vlt-aim-block{background:rgba(56,189,248,0.06);border-left:3px solid #38bdf8;border-radius:0 8px 8px 0;padding:12px 16px;}\n.vlt-aim-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:#38bdf8;margin-bottom:5px;display:block;}\n.vlt-aim-text{font-size:13.5px;color:#94a3b8;line-height:1.6;}\n.vlt-code-section{background:#07111e;border:1px solid rgba(255,255,255,0.08);border-top:none;border-radius:0 0 12px 12px;}\n.vlt-code-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid rgba(255,255,255,0.06);}\n.vlt-code-lang{display:flex;align-items:center;gap:8px;}\n.vlt-lang-dot{width:10px;height:10px;border-radius:50%;}\n.vlt-lang-dot-code{background:#38bdf8;}\n.vlt-lang-dot-steps{background:#fbbf24;}\n.vlt-lang-label{font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;}\n.vlt-copy-btn{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:'Inter',sans-serif;}\n.vlt-copy-btn:hover{background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.35);color:#38bdf8;}\n.vlt-copy-btn.copied{background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.35);color:#10b981;}\n.vlt-code-block{padding:22px 24px;font-family:'Fira Code',Consolas,Monaco,'Courier New',monospace;font-size:13.5px;line-height:1.7;color:#e2e8f0;white-space:pre-wrap;word-break:break-word;overflow-x:auto;margin:0;}\n.vlt-steps-block{padding:22px 24px;font-size:14px;line-height:1.8;color:#cbd5e1;white-space:pre-wrap;font-family:'Inter',sans-serif;}\n#_vlt_toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:11px 22px;border-radius:50px;font-size:13px;font-weight:600;box-shadow:0 8px 30px rgba(16,185,129,0.4);z-index:2147483647;opacity:0;transition:opacity 0.22s ease,transform 0.22s ease;pointer-events:none;display:flex;align-items:center;gap:8px;white-space:nowrap;}\n#_vlt_toast.show{opacity:1;transform:translateX(-50%) translateY(0);}\n#_vlt_modal_overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);z-index:2147483646;display:none;align-items:center;justify-content:center;}\n#_vlt_modal_overlay.open{display:flex;}\n#_vlt_modal{background:linear-gradient(180deg,#0f1c35,#0a1628);border:1px solid rgba(255,255,255,0.1);width:90%;max-width:560px;border-radius:14px;box-shadow:0 30px 60px rgba(0,0,0,0.7);overflow:hidden;animation:vltModalIn 0.22s ease;}\n@keyframes vltModalIn{from{opacity:0;transform:scale(0.96) translateY(12px);}to{opacity:1;transform:scale(1) translateY(0);}}\n#_vlt_modal_header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid rgba(255,255,255,0.07);}\n#_vlt_modal_header h3{font-size:16px;font-weight:700;color:#f1f5f9;}\n#_vlt_modal_close{background:none;border:none;color:#475569;font-size:22px;cursor:pointer;line-height:1;transition:color 0.15s;font-family:inherit;}\n#_vlt_modal_close:hover{color:#e2e8f0;}\n#_vlt_modal_body{padding:20px 24px;}\n.vlt-field{margin-bottom:16px;}\n.vlt-field label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#475569;margin-bottom:7px;}\n.vlt-field input,.vlt-field select,.vlt-field textarea{width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 14px;font-size:13.5px;color:#f1f5f9;outline:none;transition:border-color 0.2s,background 0.2s;font-family:'Inter',sans-serif;}\n.vlt-field input:focus,.vlt-field select:focus,.vlt-field textarea:focus{border-color:rgba(99,102,241,0.5);background:rgba(99,102,241,0.06);}\n.vlt-field select option{background:#0f1c35;color:#f1f5f9;}\n.vlt-field textarea{resize:vertical;min-height:100px;line-height:1.6;}\n.vlt-field textarea.code-font{font-family:'Fira Code',Consolas,monospace;font-size:13px;min-height:160px;}\n#_vlt_modal_footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid rgba(255,255,255,0.07);}\n";
   const AppEngine = {
-    isOpen: false,
-    cryptoKey: null,
-    currentSalt: null,
-    vaultData: [],
-    activePracticalId: null,
-    openFolderSet: new Set([0]),
-    inactivityTimer: null,
-    toastTimeout: null,
-    boundEventListeners: {},
-
+    isOpen: false, cryptoKey: null, currentSalt: null, vaultData: [], activePracticalKey: null,
+    openFolderSet: new Set([0, 1, 2, 3, 4]), inactivityTimer: null, toastTimeout: null, boundEventListeners: {},
     async unlock(cryptoKey, saltUint8, password) {
-      this.cryptoKey = cryptoKey;
-      this.currentSalt = saltUint8;
-      this.isOpen = true;
-
-      
-      this.ensureStylesheet();
-
-      await this.loadVaultData(password);
-      this.mountUI();
-      this.renderFolderTree();
-      this.setupSecurityListeners();
-
-      SupabaseSync.init();
-      if (SupabaseSync.isOnline) {
-        SupabaseSync.fetchAll().then(items => {
-          if (items && items.length > 0) {
-            this.mergeCloudData(items);
-          }
-        });
-      }
+      const self = this;
+      self.cryptoKey = cryptoKey; self.currentSalt = saltUint8; self.isOpen = true;
+      document.body.style.overflow = 'hidden'; document.documentElement.style.overflow = 'hidden';
+      self.injectStyles();
+      await self.loadVaultData(password);
+      self.mountUI(); self.renderTree(); self.setupSecurityListeners();
+      SupabaseSync.init().then(() => {
+        if (SupabaseSync.isOnline) {
+          SupabaseSync.fetchAll().then(items => { if (items && items.length > 0) self.mergeCloudData(items); }).catch(() => {});
+        }
+      }).catch(() => {});
     },
 
-    ensureStylesheet() {
-      if (!document.getElementById('_sys_core_theme')) {
-        const link = document.createElement('link');
-        link.id = '_sys_core_theme';
-        link.rel = 'stylesheet';
-        link.href = 'vault.css';
-        document.head.appendChild(link);
-      }
+    injectStyles() {
+      if (document.getElementById('_vlt_styles')) return;
+      const s = document.createElement('style'); s.id = '_vlt_styles'; s.textContent = VAULT_CSS; document.head.appendChild(s);
     },
-
-    removeStylesheet() {
-      const link = document.getElementById('_sys_core_theme');
-      if (link) link.remove();
-    },
-
+    removeStyles() { const s = document.getElementById('_vlt_styles'); if (s) s.remove(); },
     async loadVaultData(password) {
-      const encryptedStored = localStorage.getItem(SECURE_STORE_KEY);
-
-      if (encryptedStored) {
+      const enc = localStorage.getItem(SECURE_STORE_KEY);
+      if (enc) {
         try {
-          const payload = JSON.parse(encryptedStored);
-          this.vaultData = await CryptoEngine.decrypt(payload, this.cryptoKey);
+          this.vaultData = await CryptoEngine.decrypt(JSON.parse(enc), this.cryptoKey);
         } catch (err) {
-          console.warn('[Core] Decryption re-init');
+          localStorage.removeItem(SECURE_STORE_KEY);
           this.vaultData = JSON.parse(JSON.stringify(DEFAULT_SUBJECTS));
-          await this.saveVaultData();
+          try { await this.saveVaultData(); } catch (e) {}
         }
       } else {
-        const legacyData = localStorage.getItem(LEGACY_STORE_KEY);
-        if (legacyData) {
-          try {
-            const parsed = JSON.parse(legacyData);
-            this.vaultData = Array.isArray(parsed) && parsed.length > 0
-              ? parsed
-              : JSON.parse(JSON.stringify(DEFAULT_SUBJECTS));
-            localStorage.removeItem(LEGACY_STORE_KEY);
-          } catch (e) {
-            this.vaultData = JSON.parse(JSON.stringify(DEFAULT_SUBJECTS));
-          }
-        } else {
-          this.vaultData = JSON.parse(JSON.stringify(DEFAULT_SUBJECTS));
-        }
+        const leg = localStorage.getItem(LEGACY_STORE_KEY);
+        if (leg) {
+          try { const p = JSON.parse(leg); this.vaultData = Array.isArray(p) && p.length > 0 ? p : JSON.parse(JSON.stringify(DEFAULT_SUBJECTS)); localStorage.removeItem(LEGACY_STORE_KEY); }
+          catch (e) { this.vaultData = JSON.parse(JSON.stringify(DEFAULT_SUBJECTS)); }
+        } else { this.vaultData = JSON.parse(JSON.stringify(DEFAULT_SUBJECTS)); }
         await this.saveVaultData();
       }
     },
-
     async saveVaultData() {
       if (!this.cryptoKey || !this.currentSalt) return;
-      try {
-        const encrypted = await CryptoEngine.encrypt(this.vaultData, this.cryptoKey, this.currentSalt);
-        localStorage.setItem(SECURE_STORE_KEY, JSON.stringify(encrypted));
-      } catch (err) {
-        console.error('[Core] Save error:', err);
-      }
+      try { const e = await CryptoEngine.encrypt(this.vaultData, this.cryptoKey, this.currentSalt); localStorage.setItem(SECURE_STORE_KEY, JSON.stringify(e)); } catch (err) {}
     },
-
     mountUI() {
       this.unmountUI();
-
-      const panel = document.createElement('div');
-      panel.id = '_sys_protected_panel';
-      panel.style.display = 'flex';
-      panel.innerHTML = `
-        <div class="vault-topbar">
-          <div class="vault-brand">
-            <span class="vault-logo-badge">VAULT</span>
-            <h2>Practicals & Laboratory Journal Repository</h2>
-          </div>
-          <div class="vault-actions">
-            <button class="vault-pill-btn primary" id="vaultAddBtn">
-              ➕ Add Practical
-            </button>
-            <button class="vault-pill-btn" id="vaultSyncBtn">
-              🔄 Sync Cloud
-            </button>
-            <button class="vault-exit-btn" id="vaultLockBtn">
-              🔒 Lock
-            </button>
+      this.injectStyles();
+      const root = document.createElement('div'); root.id = '_vlt_root';
+      root.innerHTML = `
+        <div id="_vlt_topbar">
+          <div id="_vlt_brand"><span id="_vlt_brand_badge">VAULT</span><span id="_vlt_brand_title">Practicals &amp; Lab Journal Repository</span></div>
+          <div id="_vlt_topbar_actions">
+            <button class="vlt-btn vlt-btn-primary" id="_vlt_add_btn">&#43; Add Practical</button>
+            <button class="vlt-btn vlt-btn-ghost" id="_vlt_sync_btn">&#8635; Sync</button>
+            <button class="vlt-btn vlt-btn-danger" id="_vlt_lock_btn">&#128274; Lock</button>
           </div>
         </div>
-
-        <div class="vault-body">
-          <aside class="vault-sidebar">
-            <div class="vault-search-box">
-              <input 
-                type="text" 
-                id="vaultSearchInput" 
-                class="vault-search-input" 
-                placeholder="Search practicals by title or aim..." 
-                autocomplete="off"
-              />
-            </div>
-            <div class="vault-folder-tree" id="vaultFolderTree"></div>
+        <div id="_vlt_body">
+          <aside id="_vlt_sidebar">
+            <div id="_vlt_search_wrap"><input type="text" id="_vlt_search" placeholder="Search practicals..." autocomplete="off" /></div>
+            <div id="_vlt_tree"></div>
           </aside>
-
-          <main class="vault-content-viewer" id="vaultContentViewer">
-            <div class="viewer-empty-state" id="viewerEmptyState">
-              <div class="viewer-empty-icon">📁</div>
-              <h3>Select a practical to view code or steps</h3>
-              <p>Choose any practical from the subject folders on the left, or use the search bar above.</p>
+          <div id="_vlt_viewer">
+            <div id="_vlt_empty_state">
+              <div id="_vlt_empty_icon">&#128193;</div>
+              <h3>Select a Practical</h3>
+              <p>Pick any practical from the subject folders on the left to view its code or steps here.</p>
             </div>
-            <div id="viewerContentArea" style="display: none;"></div>
-          </main>
-        </div>
-      `;
-      document.body.appendChild(panel);
-
-      const modal = document.createElement('div');
-      modal.id = 'addPracticalModal';
-      modal.className = 'modal-overlay';
-      modal.innerHTML = `
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>Add New Practical</h3>
-            <button class="modal-close-btn" id="modalCloseBtn">&times;</button>
+            <div id="_vlt_content_area" style="display:none;"></div>
           </div>
-          <form id="addPracticalForm">
-            <div class="form-group">
-              <label for="addSubjectSelect">Subject</label>
-              <select id="addSubjectSelect" class="form-control" required>
+        </div>`;
+      document.body.appendChild(root);
+      const modal = document.createElement('div'); modal.id = '_vlt_modal_overlay';
+      modal.innerHTML = `
+        <div id="_vlt_modal">
+          <div id="_vlt_modal_header"><h3>Add New Practical</h3><button id="_vlt_modal_close">&times;</button></div>
+          <div id="_vlt_modal_body">
+            <div class="vlt-field"><label>Subject</label>
+              <select id="_vlt_sel_subject">
                 <option value="Deep Learning">Deep Learning (Code)</option>
                 <option value="Computer Vision">Computer Vision (Code)</option>
                 <option value="Tableau">Tableau (Steps)</option>
                 <option value="R Programming">R Programming (Code)</option>
-                <option value="Business Forecasting">Business Forecasting (Steps & Formulas)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="addTitleInput">Practical Title</label>
-              <input type="text" id="addTitleInput" class="form-control" placeholder="e.g. Practical 1: Introduction to..." required />
-            </div>
-            <div class="form-group">
-              <label for="addAimInput">Aim / Objective</label>
-              <textarea id="addAimInput" class="form-control" placeholder="State the objective of this practical..." rows="2" required></textarea>
-            </div>
-            <div class="form-group">
-              <label for="addContentInput" id="addContentLabel">Code Block</label>
-              <textarea id="addContentInput" class="form-control" placeholder="Paste full code or steps here..." rows="6" required></textarea>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="vault-pill-btn" id="modalCancelBtn">Cancel</button>
-              <button type="submit" class="vault-pill-btn primary">Save Practical</button>
-            </div>
-          </form>
-        </div>
-      `;
-      document.body.appendChild(modal);
-
-      const toast = document.createElement('div');
-      toast.id = 'clipboardToast';
-      toast.className = 'toast-notice';
-      toast.innerHTML = `<span>📋</span> Copied to clipboard!`;
-      document.body.appendChild(toast);
-
-      document.getElementById('vaultAddBtn').onclick = () => this.openAddModal();
-      document.getElementById('vaultSyncBtn').onclick = () => this.syncCloudStorage();
-      document.getElementById('vaultLockBtn').onclick = () => this.lock();
-      document.getElementById('vaultSearchInput').oninput = (e) => this.renderFolderTree(e.target.value);
-
-      document.getElementById('modalCloseBtn').onclick = () => this.closeAddModal();
-      document.getElementById('modalCancelBtn').onclick = () => this.closeAddModal();
-      document.getElementById('addSubjectSelect').onchange = (e) => this.handleSubjectChange(e.target.value);
-      document.getElementById('addPracticalForm').onsubmit = (e) => {
-        e.preventDefault();
-        this.handleAddPracticalSubmit();
-      };
-
-      modal.onclick = (e) => {
-        if (e.target === modal) this.closeAddModal();
-      };
-    },
-
-    unmountUI() {
-      const panel = document.getElementById('_sys_protected_panel');
-      if (panel) panel.remove();
-
-      const modal = document.getElementById('addPracticalModal');
-      if (modal) modal.remove();
-
-      const toast = document.getElementById('clipboardToast');
-      if (toast) toast.remove();
-
-      this.removeStylesheet();
-    },
-
-    setupSecurityListeners() {
-      this.cleanupSecurityListeners();
-
-      const resetInactivity = () => {
-        if (!this.isOpen) return;
-        if (this.inactivityTimer) clearTimeout(this.inactivityTimer);
-        this.inactivityTimer = setTimeout(() => {
-          this.lock();
-        }, INACTIVITY_TIMEOUT_MS);
-      };
-
-      this.boundEventListeners.resetInactivity = resetInactivity;
-      ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt => {
-        window.addEventListener(evt, resetInactivity, { passive: true });
-      });
-      resetInactivity();
-
-      const handleVisibilityChange = () => {
-        if (document.hidden && this.isOpen) {
-          this.lock();
-        }
-      };
-      this.boundEventListeners.visibility = handleVisibilityChange;
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      const handleKeydown = (e) => {
-        if (e.key === 'Escape' && this.isOpen) {
-          const modal = document.getElementById('addPracticalModal');
-          if (modal && modal.style.display === 'flex') {
-            this.closeAddModal();
-          } else {
-            this.lock();
-          }
-        }
-      };
-      this.boundEventListeners.keydown = handleKeydown;
-      window.addEventListener('keydown', handleKeydown);
-    },
-
-    cleanupSecurityListeners() {
-      if (this.inactivityTimer) {
-        clearTimeout(this.inactivityTimer);
-        this.inactivityTimer = null;
-      }
-      if (this.boundEventListeners.resetInactivity) {
-        ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt => {
-          window.removeEventListener(evt, this.boundEventListeners.resetInactivity);
-        });
-      }
-      if (this.boundEventListeners.visibility) {
-        document.removeEventListener('visibilitychange', this.boundEventListeners.visibility);
-      }
-      if (this.boundEventListeners.keydown) {
-        window.removeEventListener('keydown', this.boundEventListeners.keydown);
-      }
-      this.boundEventListeners = {};
-    },
-
-    lock() {
-      this.isOpen = false;
-      this.unmountUI();
-      this.cleanupSecurityListeners();
-
-      this.cryptoKey = null;
-      this.currentSalt = null;
-      this.vaultData = [];
-      this.activePracticalId = null;
-
-      if (window._sysGateway && typeof window._sysGateway.closeGate === 'function') {
-        window._sysGateway.closeGate();
-      }
-
-      
-      try {
-        delete window._CoreRuntime;
-      } catch (e) {
-        window._CoreRuntime = undefined;
-      }
-    },
-
-    renderFolderTree(filterQuery = '') {
-      const treeContainer = document.getElementById('vaultFolderTree');
-      if (!treeContainer) return;
-      treeContainer.innerHTML = '';
-      const query = filterQuery.trim().toLowerCase();
-
-      this.vaultData.forEach((subject, sIdx) => {
-        const filteredPracticals = subject.practicals.filter(p => {
-          if (!query) return true;
-          const matchTitle = (p.title || '').toLowerCase().includes(query);
-          const matchAim = (p.aim || '').toLowerCase().includes(query);
-          return matchTitle || matchAim;
-        });
-
-        if (query && filteredPracticals.length === 0) return;
-
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'subject-group';
-
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'subject-header';
-        const isOpen = query.length > 0 || this.openFolderSet.has(sIdx);
-
-        headerDiv.innerHTML = `
-          <div class="subject-header-left">
-            <span class="folder-arrow ${isOpen ? 'open' : ''}">▶</span>
-            <span>${this.escapeHtml(subject.name)}</span>
+                <option value="Business Forecasting">Business Forecasting (Steps)</option>
+              </select></div>
+            <div class="vlt-field"><label>Practical Title</label><input type="text" id="_vlt_inp_title" placeholder="e.g. Practical 1: ..." /></div>
+            <div class="vlt-field"><label>Aim / Objective</label><textarea id="_vlt_inp_aim" placeholder="State the objective..." rows="2"></textarea></div>
+            <div class="vlt-field"><label id="_vlt_content_label">Code</label><textarea id="_vlt_inp_content" class="code-font" placeholder="Paste your code or steps here..."></textarea></div>
           </div>
-          <span class="subject-badge ${subject.type === 'code' ? 'badge-code' : 'badge-steps'}">
-            ${subject.type === 'code' ? 'Code' : 'Steps'} (${subject.practicals.length})
-          </span>
-        `;
-
-        const sublistDiv = document.createElement('div');
-        sublistDiv.className = `practical-sublist ${isOpen ? 'open' : ''}`;
-
-        if (filteredPracticals.length === 0) {
-          const emptyItem = document.createElement('div');
-          emptyItem.className = 'practical-item';
-          emptyItem.style.fontStyle = 'italic';
-          emptyItem.style.color = '#64748b';
-          emptyItem.style.cursor = 'default';
-          emptyItem.innerHTML = `<span>(No practicals added yet)</span>`;
-          sublistDiv.appendChild(emptyItem);
+          <div id="_vlt_modal_footer">
+            <button type="button" class="vlt-btn vlt-btn-ghost" id="_vlt_modal_cancel">Cancel</button>
+            <button type="button" class="vlt-btn vlt-btn-primary" id="_vlt_modal_save">Save Practical</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+      const toast = document.createElement('div'); toast.id = '_vlt_toast'; document.body.appendChild(toast);
+      this.bindUI();
+    },
+    bindUI() {
+      const s = this;
+      document.getElementById('_vlt_add_btn').addEventListener('click', () => s.openModal());
+      document.getElementById('_vlt_sync_btn').addEventListener('click', () => s.syncCloud());
+      document.getElementById('_vlt_lock_btn').addEventListener('click', () => s.lock());
+      document.getElementById('_vlt_search').addEventListener('input', function() { s.renderTree(this.value); });
+      document.getElementById('_vlt_modal_close').addEventListener('click', () => s.closeModal());
+      document.getElementById('_vlt_modal_cancel').addEventListener('click', () => s.closeModal());
+      document.getElementById('_vlt_modal_save').addEventListener('click', () => s.saveNewPractical());
+      document.getElementById('_vlt_sel_subject').addEventListener('change', function() { s.updateContentLabel(this.value); });
+      document.getElementById('_vlt_modal_overlay').addEventListener('click', function(e) { if (e.target === this) s.closeModal(); });
+    },
+    unmountUI() {
+      ['_vlt_root','_vlt_modal_overlay','_vlt_toast'].forEach(id => { const el = document.getElementById(id); if (el) el.remove(); });
+      this.removeStyles();
+    },
+    renderTree(query) {
+      const tree = document.getElementById('_vlt_tree'); if (!tree) return;
+      tree.innerHTML = '';
+      const q = (query || '').trim().toLowerCase();
+      const s = this;
+      this.vaultData.forEach((subject, sIdx) => {
+        const filtered = subject.practicals.filter(p => !q || (p.title||'').toLowerCase().includes(q) || (p.aim||'').toLowerCase().includes(q));
+        if (q && filtered.length === 0) return;
+        const isOpen = q.length > 0 || s.openFolderSet.has(sIdx);
+        const isCode = subject.type === 'code';
+        const group = document.createElement('div'); group.className = 'vlt-subject-group';
+        const hdr = document.createElement('div'); hdr.className = 'vlt-subject-hdr';
+        hdr.innerHTML = `<div class="vlt-subject-hdr-left"><span class="vlt-arrow ${isOpen?'open':''}">&#9654;</span><span class="vlt-subject-name">${s.esc(subject.name)}</span></div><span class="vlt-badge ${isCode?'vlt-badge-code':'vlt-badge-steps'}">${isCode?'Code':'Steps'} &middot; ${subject.practicals.length}</span>`;
+        const list = document.createElement('div'); list.className = 'vlt-prac-list' + (isOpen?' open':'');
+        if (filtered.length === 0) {
+          const empty = document.createElement('div'); empty.className = 'vlt-empty-folder'; empty.textContent = 'No practicals added yet'; list.appendChild(empty);
         } else {
-          filteredPracticals.forEach((p) => {
-            const itemDiv = document.createElement('div');
-            const isSelected = this.activePracticalId === `${sIdx}_${p.title}`;
-            itemDiv.className = `practical-item ${isSelected ? 'active' : ''}`;
-            itemDiv.innerHTML = `
-              <span class="practical-item-dot"></span>
-              <span title="${this.escapeHtml(p.title)}">${this.escapeHtml(p.title)}</span>
-            `;
-            itemDiv.onclick = (e) => {
-              e.stopPropagation();
-              this.selectPractical(subject, p, `${sIdx}_${p.title}`);
-            };
-            sublistDiv.appendChild(itemDiv);
+          filtered.forEach(p => {
+            const key = sIdx + '_' + p.title;
+            const item = document.createElement('div');
+            item.className = 'vlt-prac-item' + (s.activePracticalKey === key ? ' active' : '');
+            item.dataset.key = key;
+            item.innerHTML = `<span class="vlt-prac-dot"></span><span class="vlt-prac-text" title="${s.esc(p.title)}">${s.esc(p.title)}</span>`;
+            item.addEventListener('click', function(e) { e.stopPropagation(); s.selectPractical(subject, p, key); });
+            list.appendChild(item);
           });
         }
-
-        headerDiv.onclick = () => {
-          const arrow = headerDiv.querySelector('.folder-arrow');
-          if (this.openFolderSet.has(sIdx)) {
-            this.openFolderSet.delete(sIdx);
-            sublistDiv.classList.remove('open');
-            if (arrow) arrow.classList.remove('open');
-          } else {
-            this.openFolderSet.add(sIdx);
-            sublistDiv.classList.add('open');
-            if (arrow) arrow.classList.add('open');
-          }
-        };
-
-        groupDiv.appendChild(headerDiv);
-        groupDiv.appendChild(sublistDiv);
-        treeContainer.appendChild(groupDiv);
+        hdr.addEventListener('click', function() {
+          const arrow = hdr.querySelector('.vlt-arrow');
+          if (s.openFolderSet.has(sIdx)) { s.openFolderSet.delete(sIdx); list.classList.remove('open'); if (arrow) arrow.classList.remove('open'); }
+          else { s.openFolderSet.add(sIdx); list.classList.add('open'); if (arrow) arrow.classList.add('open'); }
+        });
+        group.appendChild(hdr); group.appendChild(list); tree.appendChild(group);
       });
     },
-
-    selectPractical(subject, practical, practicalKey) {
-      this.activePracticalId = practicalKey;
-      const searchVal = document.getElementById('vaultSearchInput') ? document.getElementById('vaultSearchInput').value : '';
-      this.renderFolderTree(searchVal);
-
-      const emptyState = document.getElementById('viewerEmptyState');
-      const contentArea = document.getElementById('viewerContentArea');
-      if (emptyState) emptyState.style.display = 'none';
+    selectPractical(subject, practical, key) {
+      this.activePracticalKey = key;
+      document.querySelectorAll('#_vlt_tree .vlt-prac-item').forEach(el => el.classList.toggle('active', el.dataset.key === key));
+      const emptyState = document.getElementById('_vlt_empty_state');
+      const contentArea = document.getElementById('_vlt_content_area');
       if (!contentArea) return;
+      if (emptyState) emptyState.style.display = 'none';
       contentArea.style.display = 'block';
-
       const isCode = subject.type === 'code';
       const bodyContent = isCode ? (practical.code || '') : (practical.steps || '');
-
+      const langLabel = isCode ? 'Source Code' : 'Procedure &amp; Steps';
+      const dotCls = isCode ? 'vlt-lang-dot-code' : 'vlt-lang-dot-steps';
       contentArea.innerHTML = `
-        <article class="practical-card">
-          <div class="practical-header-area">
-            <div class="practical-tag-row">
-              <span class="practical-subj-tag">📂 ${this.escapeHtml(subject.name)}</span>
-              <span class="subject-badge ${isCode ? 'badge-code' : 'badge-steps'}">
-                ${isCode ? 'Source Code' : 'Procedure & Calculations'}
-              </span>
+        <div class="vlt-prac-card">
+          <div class="vlt-prac-card-header">
+            <div class="vlt-prac-meta-row">
+              <span class="vlt-prac-subject-tag">&#128194; ${this.esc(subject.name)}</span>
+              <span class="vlt-badge ${isCode?'vlt-badge-code':'vlt-badge-steps'}">${isCode?'Code':'Steps'}</span>
             </div>
-            <h1 class="practical-title-text">${this.escapeHtml(practical.title)}</h1>
-            <div class="aim-container">
-              <span class="aim-label">Aim / Objective</span>
-              <div class="aim-body">${this.escapeHtml(practical.aim || 'To complete the assigned lab experiment.')}</div>
+            <div class="vlt-prac-title">${this.esc(practical.title)}</div>
+            <div class="vlt-aim-block">
+              <span class="vlt-aim-label">Aim / Objective</span>
+              <div class="vlt-aim-text">${this.esc(practical.aim || 'To complete the assigned lab experiment.')}</div>
             </div>
           </div>
-          <div class="content-block-area">
-            <div class="content-top-bar">
-              <span class="content-type-title">${isCode ? 'Program Code' : 'Steps & Formulas'}</span>
-              <button class="copy-button" id="practicalCopyBtn">
-                <span>📄</span> Copy to Clipboard
-              </button>
+          <div class="vlt-code-section">
+            <div class="vlt-code-toolbar">
+              <div class="vlt-code-lang"><span class="vlt-lang-dot ${dotCls}"></span><span class="vlt-lang-label">${langLabel}</span></div>
+              <button class="vlt-copy-btn" id="_vlt_copy_btn">&#128203; Copy</button>
             </div>
-            ${isCode 
-              ? `<pre class="code-container" id="activeContentBlock">${this.escapeHtml(bodyContent)}</pre>`
-              : `<div class="steps-container" id="activeContentBlock">${this.escapeHtml(bodyContent)}</div>`
-            }
+            <${isCode?'pre':'div'} class="${isCode?'vlt-code-block':'vlt-steps-block'}" id="_vlt_active_content">${this.esc(bodyContent)}</${isCode?'pre':'div'}>
           </div>
-        </article>
-      `;
-
-      const copyBtn = document.getElementById('practicalCopyBtn');
-      if (copyBtn) {
-        copyBtn.onclick = () => this.copyContentToClipboard();
-      }
+        </div>`;
+      const copyBtn = document.getElementById('_vlt_copy_btn');
+      if (copyBtn) { const s = this; copyBtn.addEventListener('click', function() { s.copyContent(this); }); }
+      contentArea.scrollTop = 0;
     },
-
-    copyContentToClipboard() {
-      const contentBlock = document.getElementById('activeContentBlock');
-      if (!contentBlock) return;
-      const text = contentBlock.innerText;
-
-      const finishCopy = () => {
-        this.showToast('<span>📋</span> Copied to clipboard!');
+    copyContent(btn) {
+      const block = document.getElementById('_vlt_active_content'); if (!block) return;
+      const text = block.innerText || block.textContent;
+      const s = this;
+      const done = () => {
+        if (btn) { btn.classList.add('copied'); btn.innerHTML = '&#10003; Copied!'; setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = '&#128203; Copy'; }, 2000); }
+        s.showToast('Copied to clipboard!');
       };
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(finishCopy).catch(() => {
-          this.fallbackCopy(text);
-          finishCopy();
-        });
-      } else {
-        this.fallbackCopy(text);
-        finishCopy();
-      }
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => { s.fallbackCopy(text); done(); });
+      else { s.fallbackCopy(text); done(); }
     },
-
     fallbackCopy(text) {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
+      const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+      document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch(e) {} document.body.removeChild(ta);
     },
-
-    showToast(htmlContent) {
-      const toast = document.getElementById('clipboardToast');
-      if (!toast) return;
-      toast.innerHTML = htmlContent;
-      toast.classList.add('show');
+    showToast(msg) {
+      const toast = document.getElementById('_vlt_toast'); if (!toast) return;
+      toast.textContent = msg; toast.classList.add('show');
       if (this.toastTimeout) clearTimeout(this.toastTimeout);
-      this.toastTimeout = setTimeout(() => {
-        toast.classList.remove('show');
-      }, 2000);
+      this.toastTimeout = setTimeout(() => toast.classList.remove('show'), 2200);
     },
-
-    openAddModal() {
-      const modal = document.getElementById('addPracticalModal');
-      if (modal) {
-        modal.style.display = 'flex';
-        const subjSelect = document.getElementById('addSubjectSelect');
-        if (subjSelect) this.handleSubjectChange(subjSelect.value);
-        const titleInput = document.getElementById('addTitleInput');
-        if (titleInput) setTimeout(() => titleInput.focus(), 50);
-      }
+    openModal() {
+      const overlay = document.getElementById('_vlt_modal_overlay');
+      if (overlay) { overlay.classList.add('open'); const sel = document.getElementById('_vlt_sel_subject'); if (sel) this.updateContentLabel(sel.value); setTimeout(() => { const inp = document.getElementById('_vlt_inp_title'); if (inp) inp.focus(); }, 60); }
     },
-
-    closeAddModal() {
-      const modal = document.getElementById('addPracticalModal');
-      if (modal) modal.style.display = 'none';
-      const form = document.getElementById('addPracticalForm');
-      if (form) form.reset();
+    closeModal() {
+      const overlay = document.getElementById('_vlt_modal_overlay'); if (overlay) overlay.classList.remove('open');
+      ['_vlt_inp_title','_vlt_inp_aim','_vlt_inp_content'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     },
-
-    handleSubjectChange(subjName) {
-      const label = document.getElementById('addContentLabel');
-      if (!label) return;
+    updateContentLabel(subjName) {
+      const label = document.getElementById('_vlt_content_label'); const ta = document.getElementById('_vlt_inp_content');
       const isSteps = subjName === 'Tableau' || subjName === 'Business Forecasting';
-      label.innerText = isSteps ? 'Steps & Formulas' : 'Code Block';
+      if (label) label.textContent = isSteps ? 'Steps & Formulas' : 'Code';
+      if (ta) { if (isSteps) ta.classList.remove('code-font'); else ta.classList.add('code-font'); }
     },
-
-    async handleAddPracticalSubmit() {
-      const subjName = document.getElementById('addSubjectSelect').value;
-      const title = document.getElementById('addTitleInput').value.trim();
-      const aim = document.getElementById('addAimInput').value.trim();
-      const content = document.getElementById('addContentInput').value.trim();
-
+    async saveNewPractical() {
+      const subjName = (document.getElementById('_vlt_sel_subject')||{}).value;
+      const title = ((document.getElementById('_vlt_inp_title')||{}).value||'').trim();
+      const aim = ((document.getElementById('_vlt_inp_aim')||{}).value||'').trim();
+      const content = ((document.getElementById('_vlt_inp_content')||{}).value||'').trim();
+      if (!subjName || !title || !content) { this.showToast('Please fill all required fields.'); return; }
       let subject = this.vaultData.find(s => s.name.toLowerCase() === subjName.toLowerCase());
-      if (!subject) {
-        const type = (subjName === 'Tableau' || subjName === 'Business Forecasting') ? 'steps' : 'code';
-        subject = { name: subjName, type: type, practicals: [] };
-        this.vaultData.push(subject);
-      }
-
-      const newPractical = { title, aim };
-      if (subject.type === 'code') {
-        newPractical.code = content;
-      } else {
-        newPractical.steps = content;
-      }
-
-      subject.practicals.push(newPractical);
+      if (!subject) { const type = (subjName==='Tableau'||subjName==='Business Forecasting')?'steps':'code'; subject = { name: subjName, type, practicals: [] }; this.vaultData.push(subject); }
+      const newP = { title, aim };
+      if (subject.type === 'code') newP.code = content; else newP.steps = content;
+      subject.practicals.push(newP);
       await this.saveVaultData();
-
-      if (SupabaseSync.isOnline) {
-        await SupabaseSync.insertPractical({
-          subject_name: subject.name,
-          practical_title: title,
-          aim: aim,
-          content: content,
-          content_type: subject.type
-        });
-      }
-
-      this.closeAddModal();
-      this.renderFolderTree();
-      this.selectPractical(subject, newPractical, `${this.vaultData.indexOf(subject)}_${title}`);
-      this.showToast('<span>✓</span> Practical securely encrypted & saved!');
+      if (SupabaseSync.isOnline) await SupabaseSync.insertPractical({ subject_name: subject.name, practical_title: title, aim, content, content_type: subject.type });
+      this.closeModal();
+      const sIdx = this.vaultData.indexOf(subject); this.openFolderSet.add(sIdx);
+      this.renderTree(); this.selectPractical(subject, newP, sIdx + '_' + title);
+      this.showToast('Practical encrypted & saved!');
     },
-
-    async syncCloudStorage() {
-      if (SupabaseSync.isOnline) {
-        const items = await SupabaseSync.fetchAll();
-        if (items) {
-          this.mergeCloudData(items);
-          this.showToast('<span>✓</span> Cloud synchronization complete!');
-        } else {
-          this.showToast('<span>⚠️</span> Cloud fetch error.');
-        }
-      } else {
-        this.showToast('<span>🔒</span> Offline mode active (Local AES-256 Storage)');
-      }
+    async syncCloud() {
+      if (SupabaseSync.isOnline) { const items = await SupabaseSync.fetchAll(); if (items) { this.mergeCloudData(items); this.showToast('Cloud sync complete!'); } else this.showToast('Cloud fetch failed.'); }
+      else this.showToast('Offline — using local AES-256 storage');
     },
-
     mergeCloudData(cloudItems) {
       cloudItems.forEach(item => {
         let subject = this.vaultData.find(s => s.name.toLowerCase() === item.subject_name.toLowerCase());
-        if (!subject) {
-          subject = {
-            name: item.subject_name,
-            type: item.content_type || 'code',
-            practicals: []
-          };
-          this.vaultData.push(subject);
-        }
-        const exists = subject.practicals.some(p => p.title.toLowerCase() === item.practical_title.toLowerCase());
-        if (!exists) {
-          const newP = {
-            title: item.practical_title,
-            aim: item.aim || ''
-          };
-          if (subject.type === 'code') {
-            newP.code = item.content;
-          } else {
-            newP.steps = item.content;
-          }
+        if (!subject) { subject = { name: item.subject_name, type: item.content_type||'code', practicals: [] }; this.vaultData.push(subject); }
+        if (!subject.practicals.some(p => p.title.toLowerCase() === item.practical_title.toLowerCase())) {
+          const newP = { title: item.practical_title, aim: item.aim||'' };
+          if (subject.type==='code') newP.code = item.content; else newP.steps = item.content;
           subject.practicals.push(newP);
         }
       });
-      this.saveVaultData();
-      this.renderFolderTree();
+      this.saveVaultData(); this.renderTree();
     },
-
-    escapeHtml(str) {
+    setupSecurityListeners() {
+      this.cleanupSecurityListeners();
+      const s = this;
+      const resetInactivity = () => { if (!s.isOpen) return; if (s.inactivityTimer) clearTimeout(s.inactivityTimer); s.inactivityTimer = setTimeout(() => s.lock(), INACTIVITY_TIMEOUT_MS); };
+      s.boundEventListeners.resetInactivity = resetInactivity;
+      ['mousemove','keydown','click','scroll','touchstart'].forEach(evt => window.addEventListener(evt, resetInactivity, { passive: true }));
+      resetInactivity();
+      const handleVisibility = () => { if (document.hidden && s.isOpen) s.lock(); };
+      s.boundEventListeners.visibility = handleVisibility;
+      document.addEventListener('visibilitychange', handleVisibility);
+      const handleKeydown = (e) => { if (e.key==='Escape' && s.isOpen) { const m = document.getElementById('_vlt_modal_overlay'); if (m && m.classList.contains('open')) s.closeModal(); else s.lock(); } };
+      s.boundEventListeners.keydown = handleKeydown;
+      window.addEventListener('keydown', handleKeydown);
+    },
+    cleanupSecurityListeners() {
+      if (this.inactivityTimer) { clearTimeout(this.inactivityTimer); this.inactivityTimer = null; }
+      if (this.boundEventListeners.resetInactivity) ['mousemove','keydown','click','scroll','touchstart'].forEach(evt => window.removeEventListener(evt, this.boundEventListeners.resetInactivity));
+      if (this.boundEventListeners.visibility) document.removeEventListener('visibilitychange', this.boundEventListeners.visibility);
+      if (this.boundEventListeners.keydown) window.removeEventListener('keydown', this.boundEventListeners.keydown);
+      this.boundEventListeners = {};
+    },
+    lock() {
+      this.isOpen = false; this.unmountUI(); this.cleanupSecurityListeners();
+      document.body.style.overflow = ''; document.documentElement.style.overflow = '';
+      this.cryptoKey = null; this.currentSalt = null; this.vaultData = []; this.activePracticalKey = null;
+    },
+    esc(str) {
       if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
     }
   };
-
-  window._CoreRuntime = {
-    engine: AppEngine,
-    crypto: CryptoEngine
-  };
+  Object.defineProperty(window, '_CoreRuntime', { value: { engine: AppEngine, crypto: CryptoEngine }, writable: true, configurable: true, enumerable: false });
 })();

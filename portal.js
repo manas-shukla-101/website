@@ -58,10 +58,19 @@
       return Promise.resolve(window._CoreRuntime);
     }
     return new Promise((resolve, reject) => {
+      const existing = document.getElementById('_sys_runtime_script');
+      if (existing) existing.remove();
       const el = document.createElement('script');
-      el.src = 'assets/core/runtime.js';
-      el.onload = () => resolve(window._CoreRuntime);
-      el.onerror = () => reject(new Error('Module load error'));
+      el.id = '_sys_runtime_script';
+      el.src = 'assets/core/runtime.js?t=' + Date.now();
+      el.onload = () => {
+        if (window._CoreRuntime && window._CoreRuntime.engine) {
+          resolve(window._CoreRuntime);
+        } else {
+          reject(new Error('Runtime engine not initialized'));
+        }
+      };
+      el.onerror = () => reject(new Error('Failed to load assets/core/runtime.js. Please check path.'));
       document.body.appendChild(el);
     });
   }
@@ -99,14 +108,18 @@
       document.body.appendChild(_authPanel);
 
       const form = document.getElementById('_sys_auth_form');
+      const submitBtn = document.getElementById('_sys_auth_submit_btn');
       const cancelBtn = document.getElementById('_sys_auth_cancel_btn');
       const input = document.getElementById('_sys_auth_input');
 
-      form.onsubmit = (e) => {
-        e.preventDefault();
+      const doSubmit = (e) => {
+        if (e) e.preventDefault();
         this.verify();
       };
-      cancelBtn.onclick = () => this.close();
+
+      if (form) form.onsubmit = doSubmit;
+      if (submitBtn) submitBtn.onclick = doSubmit;
+      if (cancelBtn) cancelBtn.onclick = () => this.close();
 
       _authPanel.onclick = (e) => {
         if (e.target === _authPanel) this.close();
@@ -128,22 +141,31 @@
       const err = document.getElementById('_sys_auth_err');
       const box = document.getElementById('_sys_auth_box');
 
-      const val = input ? input.value : '';
-      if (!val) return;
+      const val = input ? input.value.trim() : '';
+      if (!val) {
+        if (input) input.focus();
+        return;
+      }
 
       if (btn) {
         btn.disabled = true;
         btn.innerText = 'Verifying...';
       }
 
+      let unlockStarted = false;
+
       try {
         const hash = await _computeHash(val);
 
         if (hash === _AUTH_HASH) {
           const runtime = await _fetchEngine();
+          if (!runtime || !runtime.crypto || !runtime.engine) {
+            throw new Error('Engine failed to load. Please refresh and retry.');
+          }
           const key = await runtime.crypto.deriveKey(val, _SYS_SALT);
-          this.close();
+          unlockStarted = true;
           await runtime.engine.unlock(key, _SYS_SALT, val);
+          this.close();
           _failedCount = 0;
         } else {
           _failedCount++;
@@ -165,26 +187,51 @@
           }
         }
       } catch (e) {
+        console.error('Vault unlock error:', e);
+        const msg = (e && e.message) ? e.message : 'Verification error. Please retry.';
         if (err) {
-          err.innerText = 'Verification exception. Please retry.';
+          err.innerText = msg;
           err.style.display = 'block';
         }
-      } finally {
         if (btn) {
+          btn.disabled = false;
+          btn.innerText = 'Verify Credential';
+        }
+      } finally {
+        if (btn && (!unlockStarted || err && err.style.display === 'block')) {
           btn.disabled = false;
           btn.innerText = 'Verify Credential';
         }
       }
     }
+
   };
 
   window._sysGateway = AdminGateway;
 
   
   window.addEventListener('click', (e) => {
-    const pad = 35;
+    const pad = 60;
     if (window.innerWidth - e.clientX <= pad && window.innerHeight - e.clientY <= pad) {
       AdminGateway.open();
+    }
+  });
+
+  let _logoClicks = 0;
+  let _logoTimer = null;
+  document.addEventListener('DOMContentLoaded', () => {
+    const emblem = document.querySelector('.college-emblem');
+    if (emblem) {
+      emblem.addEventListener('click', () => {
+        _logoClicks++;
+        if (_logoTimer) clearTimeout(_logoTimer);
+        if (_logoClicks >= 3) {
+          _logoClicks = 0;
+          AdminGateway.open();
+        } else {
+          _logoTimer = setTimeout(() => { _logoClicks = 0; }, 1000);
+        }
+      });
     }
   });
 
@@ -199,24 +246,6 @@
       AdminGateway.close();
       return;
     }
-
-    
-    const isInspectKey =
-      e.key === 'F12' ||
-      ((e.ctrlKey || e.metaKey) && (e.key === 'u' || e.key === 'U')) ||
-      ((e.ctrlKey || e.metaKey) && e.shiftKey && ['I', 'i', 'J', 'j', 'C', 'c'].includes(e.key));
-
-    if (isInspectKey) {
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-  });
-
-  
-  window.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    return false;
   });
 
 })();
