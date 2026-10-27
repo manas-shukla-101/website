@@ -145,7 +145,7 @@
     },
     bindUI() {
       const s = this;
-      document.getElementById('_vlt_add_btn').addEventListener('click', () => s.openModal());
+      const addBtn = document.getElementById('_vlt_add_btn'); if (addBtn) addBtn.addEventListener('click', () => s.openModal());
       document.getElementById('_vlt_sync_btn').addEventListener('click', () => s.syncCloud());
       document.getElementById('_vlt_lock_btn').addEventListener('click', () => s.lock());
       document.getElementById('_vlt_search').addEventListener('input', function() { s.renderTree(this.value); });
