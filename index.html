@@ -6,16 +6,11 @@
   <title>Thakur Shyamnarayan Degree College (TSDC) - Excellence in Education</title>
   <meta name="description" content="Thakur Shyamnarayan Degree College in Kandivali offers comprehensive undergraduate and postgraduate programs in Science, Commerce, and Arts with state-of-the-art academic facilities.">
   <link rel="stylesheet" href="style.css">
-  <!-- Supabase JS Client (Optional cloud sync) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-  <!-- =========================================
-       DECOY COLLEGE PORTAL (TSDC Cloned Layout)
-       ========================================= -->
   <header>
-    <!-- Top Announcement Bar -->
     <div class="top-notice-bar">
       <div class="notice-inner">
         <span class="notice-badge">Notice</span>
@@ -26,8 +21,6 @@
         <a href="mailto:tsdc@thakureducation.org">✉️ tsdc@thakureducation.org</a>
       </div>
     </div>
-
-    <!-- Main Branding Header -->
     <div class="portal-header">
       <div class="header-container">
         <div class="college-brand">
@@ -43,8 +36,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Navigation Menu -->
     <nav class="college-navbar" aria-label="College Main Navigation">
       <div class="nav-container">
         <ul class="nav-menu">
@@ -60,8 +51,6 @@
       </div>
     </nav>
   </header>
-
-  <!-- Hero Section -->
   <section class="college-hero" id="home">
     <div class="hero-inner">
       <div class="hero-subtitle">Zagdu Singh Charitable Trust's</div>
@@ -76,8 +65,6 @@
       </div>
     </div>
   </section>
-
-  <!-- Key Highlights -->
   <section class="highlights-section">
     <div class="highlight-card">
       <div class="hl-icon">🏛️</div>
@@ -100,8 +87,6 @@
       <p>Extensive access to IEEE, Springer, and institutional journal repositories.</p>
     </div>
   </section>
-
-  <!-- Academic Content Grid -->
   <main class="content-grid-section">
     <article class="section-box" id="academics">
       <h3 class="section-heading">Featured Academic Departments</h3>
@@ -124,7 +109,6 @@
         </div>
       </div>
     </article>
-
     <aside class="section-box" id="notices">
       <h3 class="section-heading">Circulars & Notices</h3>
       <ul class="notice-list">
@@ -143,8 +127,6 @@
       </ul>
     </aside>
   </main>
-
-  <!-- College Footer -->
   <footer class="portal-footer" id="contact">
     <div class="footer-container">
       <div class="footer-col">
@@ -170,19 +152,7 @@
       &copy; 2026 Thakur Shyamnarayan Degree College. All Rights Reserved. Affiliated to University of Mumbai.
     </div>
   </footer>
-
-  <!-- =========================================
-       INVISIBLE ACCESS BUTTON
-       30x30px transparent fixed div at bottom-right
-       ========================================= -->
   <div id="_sys_t_portal_trigger" title="" aria-hidden="true"></div>
-
-  <!-- =========================================
-       PASSWORD GATE OVERLAY
-       Single password input + submit button
-       SHA-256 validation against "manas123"
-       Wrong password -> full page reload immediately
-       ========================================= -->
   <div id="_sys_auth_overlay" class="ovl-auth-container" style="display: none;">
     <div class="ovl-auth-box">
       <div class="ovl-auth-icon">🔒</div>
@@ -203,27 +173,18 @@
       </form>
     </div>
   </div>
-
-  <!-- =========================================
-       VAULT SECTION (Hidden until unlocked)
-       ========================================= -->
   <div id="_sys_protected_panel">
-    <!-- Vault Header -->
     <div class="vault-topbar">
       <div class="vault-brand">
         <span class="vault-logo-badge">VAULT</span>
         <h2>Practicals & Laboratory Journal Repository</h2>
       </div>
       <div class="vault-actions">
-        <!-- Add Practical Button (Configurable / Development) -->
         <button class="vault-pill-btn primary" id="addPracticalBtn" onclick="openAddModal()">
           ➕ Add Practical
         </button>
         <button class="vault-pill-btn" onclick="syncCloudStorage()">
           🔄 Sync Cloud
-        </button>
-        <button class="vault-pill-btn" onclick="resetVaultData()">
-          🗑️ Clear All
         </button>
         <button class="vault-exit-btn" onclick="lockVault()">
           🔒 Lock
