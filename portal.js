@@ -236,17 +236,110 @@
   });
 
   
-  window.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'V' || e.key === 'v')) {
-      e.preventDefault();
-      AdminGateway.open();
-      return;
+  // =========================================================================
+  // GATEWAY KEY SHORTCUTS & ANTI-DEVTOOLS / RIGHT-CLICK PROTECTION
+  // =========================================================================
+  const SecurityGuard = {
+    init() {
+      this.disableContextMenu();
+      this.disableDevToolsKeys();
+      this.disableImageDragging();
+      this.initAntiDebugger();
+    },
+
+    disableContextMenu() {
+      const block = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      };
+      window.addEventListener('contextmenu', block, { capture: true, passive: false });
+      document.addEventListener('contextmenu', block, { capture: true, passive: false });
+      document.oncontextmenu = () => false;
+      if (document.body) document.body.oncontextmenu = () => false;
+    },
+
+    disableDevToolsKeys() {
+      window.addEventListener('keydown', (e) => {
+        // 1. Allow the Admin Gateway shortcut (Ctrl+Shift+V / Cmd+Shift+V)
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'V' || e.key === 'v')) {
+          e.preventDefault();
+          AdminGateway.open();
+          return;
+        }
+
+        // Close auth panel on Escape
+        if (e.key === 'Escape' && _authPanel) {
+          AdminGateway.close();
+          return;
+        }
+
+        // 2. Block F12 (DevTools toggle)
+        if (e.key === 'F12' || e.keyCode === 123) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+
+        // 3. Block Ctrl+Shift+I (Inspect), Ctrl+Shift+J (Console), Ctrl+Shift+C (Element Inspector)
+        // macOS equivalents: Cmd+Option+I, Cmd+Option+J, Cmd+Option+C
+        if ((e.ctrlKey || e.metaKey) && (e.shiftKey || e.altKey)) {
+          const k = (e.key || '').toUpperCase();
+          if (k === 'I' || k === 'J' || k === 'C') {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+        }
+
+        // 4. Block Ctrl+U (View Source) and Ctrl+S (Save Page)
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+          const k = (e.key || '').toUpperCase();
+          if (k === 'U' || k === 'S') {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+        }
+      }, { capture: true });
+    },
+
+    disableImageDragging() {
+      document.addEventListener('dragstart', (e) => {
+        e.preventDefault();
+      }, { passive: false });
+    },
+
+    initAntiDebugger() {
+      const checkDevTools = () => {
+        // Do not interrupt authenticated admin session
+        if (window._CoreRuntime && window._CoreRuntime.engine && window._CoreRuntime.engine.isOpen) {
+          return;
+        }
+
+        // Detect docked DevTools by screen/window threshold
+        const widthThreshold = window.outerWidth - window.innerWidth > 160;
+        const heightThreshold = window.outerHeight - window.innerHeight > 160;
+        if (widthThreshold || heightThreshold) {
+          console.clear();
+          console.log('%c⚠️ DevTools inspection is restricted on this website.', 'color:#ef4444;font-size:16px;font-weight:bold;');
+        }
+
+        // Debugger trap: halts execution if DevTools is open
+        const startTime = performance.now();
+        (function () {}.constructor('debugger')());
+        const executionTime = performance.now() - startTime;
+        if (executionTime > 100) {
+          console.clear();
+        }
+      };
+
+      setInterval(checkDevTools, 800);
     }
-    if (e.key === 'Escape' && _authPanel) {
-      AdminGateway.close();
-      return;
-    }
-  });
+  };
+
+  SecurityGuard.init();
 
 })();
+
 
